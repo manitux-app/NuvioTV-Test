@@ -833,10 +833,12 @@ class PluginManager @Inject constructor(
             return PluginCatalogPage(emptyList())
         }
         val code = dataStore.getScraperCode(scraper.id) ?: return PluginCatalogPage(emptyList())
-        val raw = runtime.executeCatalog(
-            code, descriptor.id, descriptor.type.toApiString(), pageToken, language,
-            scraper.id, dataStore.getScraperSettings(scraper.id)
-        )
+        val raw = withContext(pluginDispatcher) {
+            runtime.executeCatalog(
+                code, descriptor.id, descriptor.type.toApiString(), pageToken, language,
+                scraper.id, dataStore.getScraperSettings(scraper.id)
+            )
+        }
         val root = com.google.gson.JsonParser.parseString(raw).takeIf { it.isJsonObject }?.asJsonObject
             ?: return PluginCatalogPage(emptyList())
         val source = PluginSourceRef(RepositoryType.NUVIO_JS, scraper.repositoryId, scraper.id)

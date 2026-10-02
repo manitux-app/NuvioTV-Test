@@ -8,6 +8,22 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface TmdbApi {
+
+    @GET("search/movie")
+    suspend fun searchMovies(
+        @Query("query") query: String,
+        @Query("api_key") apiKey: String,
+        @Query("year") year: Int? = null,
+        @Query("language") language: String? = null
+    ): Response<TmdbSearchResponse>
+
+    @GET("search/tv")
+    suspend fun searchTv(
+        @Query("query") query: String,
+        @Query("api_key") apiKey: String,
+        @Query("first_air_date_year") year: Int? = null,
+        @Query("language") language: String? = null
+    ): Response<TmdbSearchResponse>
     
     @GET("find/{external_id}")
     suspend fun findByExternalId(
@@ -613,6 +629,11 @@ data class TmdbDiscoverResult(
     @Json(name = "vote_average") val voteAverage: Double? = null,
     @Json(name = "vote_count") val voteCount: Int? = null,
     @Json(name = "popularity") val popularity: Double? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class TmdbSearchResponse(
+    @Json(name = "results") val results: List<TmdbDiscoverResult>? = null
 )
 
 @JsonClass(generateAdapter = true)

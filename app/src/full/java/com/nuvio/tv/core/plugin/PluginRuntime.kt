@@ -45,6 +45,7 @@ private const val MAX_FETCH_BODY_CHARS = 1024 * 1024
 class PluginRuntime @Inject constructor() {
 
     private val gson: Gson = GsonBuilder().create()
+    private val catalogFetchResolver = PluginCatalogFetchResolver()
 
     private val httpClient = OkHttpClient.Builder()
         .dns(com.nuvio.tv.core.network.IPv4FirstDns())
@@ -258,7 +259,7 @@ class PluginRuntime @Inject constructor() {
         executePluginInternal(
             code, scraperId, scraperSettings, getCatalogCallCode(), mapOf(
                 "catalogId" to catalogId, "type" to type, "pageToken" to pageToken, "language" to language
-            )
+            ), isCatalogExecution = true
         )
     }
 
@@ -267,7 +268,8 @@ class PluginRuntime @Inject constructor() {
         scraperId: String,
         scraperSettings: Map<String, Any>,
         callCode: String,
-        callArgs: Map<String, Any?>
+        callArgs: Map<String, Any?>,
+        isCatalogExecution: Boolean = false
     ): String {
         val documentCache = ConcurrentHashMap<String, Document>()
         val loadedDocIds = java.util.Collections.synchronizedList(mutableListOf<String>())
@@ -330,7 +332,10 @@ class PluginRuntime @Inject constructor() {
                             !it.equals("false", ignoreCase = true)
                         } ?: true
                         try {
-                            performNativeFetch(url, method, headersJson, bodyKind, body, followRedirects, inFlightCalls)
+                            performNativeFetch(
+                                url, method, headersJson, bodyKind, body, followRedirects, inFlightCalls,
+                                isCatalogExecution
+                            )
                         } catch (t: Throwable) {
                             Log.e(TAG, "Async fetch bridge error for $method $url: ${t.message}")
                             gson.toJson(
@@ -545,7 +550,8 @@ class PluginRuntime @Inject constructor() {
         bodyKind: String,
         body: String,
         followRedirects: Boolean,
-        inFlightCalls: MutableSet<Call>
+        inFlightCalls: MutableSet<Call>,
+        isCatalogExecution: Boolean = false
     ): String {
         Log.d(TAG, "Fetch: $method $url bodyKind=$bodyKind")
         return try {
@@ -611,13 +617,57 @@ class PluginRuntime @Inject constructor() {
                     .followSslRedirects(false)
                     .build()
             }
-            val call = client.newCall(request)
-            inFlightCalls.add(call)
+            if (isCatalogExecution) {
+                catalogFetchResolver.execute(request, followRedirects, inFlightCalls).use { handle ->
+                    val httpResponse = handle.response
 
-            try {
-                val response = call.execute()
+                    val bodyContentType = httpResponse.body?.contentType()
+                    val contentEncoding = httpResponse.header("Content-Encoding")?.lowercase()?.trim()
+                    val decodedRead = try {
+                        val stream = httpResponse.body?.byteStream()
+                        if (stream == null) {
+                            BoundedReadResult(ByteArray(0), false)
+                        } else {
+                            val decodeStream: InputStream = when (contentEncoding) {
+                                "gzip" -> GZIPInputStream(stream)
+                                "deflate" -> InflaterInputStream(stream)
+                                else -> stream
+                            }
+                            decodeStream.use {
+                                readAtMostBytes(it, MAX_FETCH_RESPONSE_BYTES)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to read/decode response body for $url: ${e.message}")
+                        BoundedReadResult(ByteArray(0), false)
+                    }
 
-                response.use { httpResponse ->
+                    val charset = bodyContentType?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+                    val responseBody = decodeBodyToSafeString(decodedRead.bytes, charset)
+                    val responseHeaders = httpResponse.headers.toPluginResponseHeaders()
+
+                    val result = mapOf(
+                        "ok" to httpResponse.isSuccessful,
+                        "status" to httpResponse.code,
+                        "statusText" to httpResponse.message,
+                        "url" to httpResponse.request.url.toString(),
+                        "body" to responseBody,
+                        "bodyBase64" to base64Encode(decodedRead.bytes),
+                        "headers" to responseHeaders,
+                        "truncated" to decodedRead.truncated
+                    )
+
+                    Log.d(TAG, "Fetch result: ${httpResponse.code} ${httpResponse.message} url=$url bodyLen=${responseBody.length} bodyPreview=${responseBody.take(300)}")
+                    gson.toJson(result)
+                }
+            } else {
+                val call = client.newCall(request)
+                inFlightCalls.add(call)
+
+                try {
+                    val response = call.execute()
+
+                    response.use { httpResponse ->
                     val bodyContentType = httpResponse.body?.contentType()
                     val contentEncoding = httpResponse.header("Content-Encoding")?.lowercase()?.trim()
                     val decodedRead = try {
@@ -660,8 +710,9 @@ class PluginRuntime @Inject constructor() {
             } finally {
                 inFlightCalls.remove(call)
             }
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Fetch error: ${e.message}")
+            Log.e(TAG, "Fetch error: ${e.javaClass.simpleName}: ${e.message}", e)
             gson.toJson(mapOf(
                 "ok" to false,
                 "status" to 0,

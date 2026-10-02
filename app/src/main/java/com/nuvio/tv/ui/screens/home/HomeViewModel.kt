@@ -35,6 +35,7 @@ import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.PluginCatalogDescriptor
 import com.nuvio.tv.domain.model.PluginSourceRef
 import com.nuvio.tv.domain.model.PluginContentRegistry
+import com.nuvio.tv.domain.model.hasNextPageAfter
 import com.nuvio.tv.domain.model.RepositoryType
 import com.nuvio.tv.domain.model.ScraperInfo
 import com.nuvio.tv.data.repository.MDBListRepository
@@ -544,7 +545,10 @@ class HomeViewModel @Inject constructor(
                     catalogName = descriptor.name,
                     type = descriptor.type,
                     items = page.items.map { it.toMetaPreview() },
-                    hasMore = descriptor.supportsPagination && page.nextPageToken != null,
+                    hasMore = page.hasNextPageAfter(
+                        requestedPageToken = null,
+                        supportsPagination = descriptor.supportsPagination
+                    ),
                     supportsSkip = false,
                     pluginSource = source,
                     pluginNextPageToken = page.nextPageToken

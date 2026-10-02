@@ -112,6 +112,8 @@ class MetaDetailsViewModel @Inject constructor(
     private val itemType: String = savedStateHandle["itemType"] ?: ""
     private val preferredAddonBaseUrl: String? = savedStateHandle["addonBaseUrl"]
     private val pluginContentRef = PluginContentRegistry.get(itemId)
+    private val pluginCatalogItem = PluginContentRegistry.getItem(itemId)
+    private var resolvedPluginTmdbId: Int? = null
 
     private val _uiState = MutableStateFlow(MetaDetailsUiState())
     private val shuffleVisit = System.nanoTime()
@@ -780,7 +782,7 @@ class MetaDetailsViewModel @Inject constructor(
 
                             if (preferredMeta != null) {
                                 applyMetaWithEnrichment(preferredMeta)
-                            } else if (tryApplyTmdbFallbackMeta()) {
+                            } else if (tryApplyTmdbFallbackMeta(metaLookupId)) {
                                 Unit
                             } else {
                                 val errorMsg = buildMetaLoadErrorMessage(result.message, metaLookupId)
@@ -812,7 +814,7 @@ class MetaDetailsViewModel @Inject constructor(
                                 applyMetaWithEnrichment(result.data)
                             }
                             is NetworkResult.Error -> {
-                                if (!tryApplyTmdbFallbackMeta()) {
+                                if (!tryApplyTmdbFallbackMeta(metaLookupId)) {
                                     val errorMsg = buildMetaLoadErrorMessage(result.message, metaLookupId)
                                     _uiState.update { it.copy(isLoading = false, error = errorMsg) }
                                 }
@@ -827,8 +829,14 @@ class MetaDetailsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun tryApplyTmdbFallbackMeta(): Boolean {
-        val tmdbId = itemId
+    private suspend fun tryApplyTmdbFallbackMeta(lookupId: String): Boolean {
+        val tmdbId = resolvedPluginTmdbId
+            ?: lookupId
+                .takeIf { it.startsWith("tmdb:", ignoreCase = true) }
+                ?.substringAfter(':')
+                ?.substringBefore(':')
+                ?.toIntOrNull()
+            ?: itemId
             .takeIf { it.startsWith("tmdb:", ignoreCase = true) }
             ?.substringAfter(':')
             ?.substringBefore(':')
@@ -884,6 +892,21 @@ class MetaDetailsViewModel @Inject constructor(
         pluginContentRef?.externalIds?.tmdbId
             ?.takeIf { it.isNotBlank() }
             ?.let { return "tmdb:$it" }
+        pluginContentRef?.externalIds?.imdbId
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+        pluginCatalogItem?.let { item ->
+            val tmdbId = tmdbService.findTmdbIdByTitle(
+                title = item.name,
+                year = item.year,
+                mediaType = item.content.type.toApiString(),
+                language = tmdbSettingsDataStore.settings.first().language
+            )
+            if (tmdbId != null) {
+                resolvedPluginTmdbId = tmdbId.toIntOrNull()
+                return "tmdb:$tmdbId"
+            }
+        }
         val raw = itemId.trim()
         if (!raw.startsWith("tmdb:", ignoreCase = true)) return raw
 

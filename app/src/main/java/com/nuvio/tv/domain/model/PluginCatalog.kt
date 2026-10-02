@@ -48,6 +48,14 @@ data class PluginContentRef(
         "plugin",
         source.identityParts() + listOf(type.toApiString(), contentId)
     )
+
+    /**
+     * A catalog provider's opaque ID is meaningful only to that same provider.
+     * Other stream plugins need a declared external identifier.
+     */
+    fun streamRequestIdFor(selectedScraperId: String?): String? =
+        externalIds.tmdbId ?: externalIds.imdbId ?:
+            contentId.takeIf { selectedScraperId == source.scraperId }
 }
 
 data class PluginCatalogDescriptor(
@@ -110,6 +118,13 @@ data class PluginCatalogPage(
     val items: List<PluginCatalogItem>,
     val nextPageToken: String? = null
 )
+
+/** A plugin cursor must advance and return content before Home offers another page. */
+fun PluginCatalogPage.hasNextPageAfter(
+    requestedPageToken: String?,
+    supportsPagination: Boolean
+): Boolean = supportsPagination && items.isNotEmpty() &&
+    nextPageToken != null && nextPageToken != requestedPageToken
 
 internal fun pluginCatalogRowKey(source: PluginSourceRef, catalogId: String, type: String): String =
     pluginIdentity("plugin-catalog", source.identityParts() + listOf(catalogTypeKey(type), catalogId))

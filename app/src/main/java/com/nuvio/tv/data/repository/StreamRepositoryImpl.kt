@@ -263,7 +263,9 @@ class StreamRepositoryImpl @Inject constructor(
 
                         val tmdbId = tmdbService.ensureTmdbId(videoId, type)
                         Log.d(TAG, "Video ID: $videoId -> TMDB ID: $tmdbId (type: $type)")
-                        val pluginRequest = buildPluginRequest(tmdbId, type, videoId, pluginContent)
+                        val pluginRequest = buildPluginRequest(
+                            tmdbId, type, videoId, pluginContent, selectedPluginScraperId
+                        )
                             ?: return@launch
                         val (pluginSeason, pluginEpisode) = resolvePluginSeasonEpisode(
                             videoId = videoId,
@@ -373,13 +375,11 @@ class StreamRepositoryImpl @Inject constructor(
 
     private fun buildPluginRequest(
         tmdbId: String?, type: String, videoId: String,
-        pluginContent: PluginContentRef?
+        pluginContent: PluginContentRef?, selectedPluginScraperId: String?
     ): PluginRequest? {
         if (pluginContent != null) {
             return PluginRequest(
-                id = pluginContent.externalIds.tmdbId
-                    ?: pluginContent.externalIds.imdbId
-                    ?: pluginContent.contentId,
+                id = pluginContent.streamRequestIdFor(selectedPluginScraperId) ?: return null,
                 mediaType = normalizeTmdbPluginType(type),
                 source = "PLUGIN"
             )

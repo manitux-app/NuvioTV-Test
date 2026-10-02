@@ -8,18 +8,21 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object PluginContentRegistry {
     private const val MAX_ITEMS = 512
-    private val entries = ConcurrentHashMap<String, PluginContentRef>()
+    private val entries = ConcurrentHashMap<String, PluginCatalogItem>()
     private val streamSelections = ConcurrentHashMap<String, PluginSourceRef>()
     @Volatile private var activeStreamSelection: PluginSourceRef? = null
 
     fun put(items: Iterable<PluginCatalogItem>) {
-        items.forEach { item -> entries[item.content.stableId()] = item.content }
+        items.forEach { item -> entries[item.content.stableId()] = item }
         if (entries.size > MAX_ITEMS) {
             entries.keys.take(entries.size - MAX_ITEMS).forEach(entries::remove)
         }
     }
 
-    fun get(stableId: String): PluginContentRef? = entries[stableId]
+    fun get(stableId: String): PluginContentRef? = entries[stableId]?.content
+
+    /** Keeps display metadata available for TMDB resolution after Home navigation. */
+    fun getItem(stableId: String): PluginCatalogItem? = entries[stableId]
 
     /** Captures the Home source choice at navigation time, not catalog-load time. */
     fun selectStreamSource(stableId: String, source: PluginSourceRef?) {

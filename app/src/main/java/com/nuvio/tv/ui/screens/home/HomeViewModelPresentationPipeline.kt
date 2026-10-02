@@ -13,6 +13,7 @@ import com.nuvio.tv.domain.model.HomeImdbRatingsVisibility
 import com.nuvio.tv.domain.model.HomeLayout
 import com.nuvio.tv.domain.model.Meta
 import com.nuvio.tv.domain.model.MetaPreview
+import com.nuvio.tv.domain.model.PluginContentRegistry
 import com.nuvio.tv.domain.model.TmdbSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -479,12 +480,34 @@ private sealed interface ExternalMetaOutcome {
  * Whether an external meta fetch is still outstanding. A TMDB success must not stand in for one
  * that has not resolved, and both gates ask this rather than keeping their own copy of the rule.
  */
+private suspend fun HomeViewModel.resolveMetadataId(item: MetaPreview): String {
+    val pluginItem = PluginContentRegistry.getItem(item.id) ?: return item.id
+    pluginItem.content.externalIds.tmdbId?.takeIf { it.isNotBlank() }?.let { return "tmdb:$it" }
+    pluginItem.content.externalIds.imdbId?.takeIf { it.isNotBlank() }?.let { return it }
+    val tmdbId = tmdbService.findTmdbIdByTitle(
+        title = pluginItem.name,
+        year = pluginItem.year,
+        mediaType = pluginItem.content.type.toApiString(),
+        language = currentTmdbSettings.language
+    )
+    return tmdbId?.let { "tmdb:$it" } ?: item.id
+}
+
+private suspend fun HomeViewModel.resolveTmdbIdForEnrichment(item: MetaPreview): String? {
+    val metadataId = resolveMetadataId(item)
+    return if (metadataId.startsWith("tmdb:", ignoreCase = true)) {
+        metadataId.substringAfter(':').substringBefore(':').takeIf { it.isNotBlank() }
+    } else {
+        tmdbService.ensureTmdbId(metadataId, item.apiType)
+    }
+}
+
 private fun HomeViewModel.externalEnrichmentOutstanding(itemId: String): Boolean =
     externalMetaPrefetchEnabled && itemId !in prefetchedExternalMetaIds
 
 private suspend fun HomeViewModel.fetchExternalMetaOutcome(item: MetaPreview): ExternalMetaOutcome =
     try {
-        val result = metaRepository.getMetaFromAllAddons(item.apiType, item.id, item.sourceAddonBaseUrl)
+        val result = metaRepository.getMetaFromAllAddons(item.apiType, resolveMetadataId(item), item.sourceAddonBaseUrl)
             .first { it is NetworkResult.Success || it is NetworkResult.Error }
         when {
             result is NetworkResult.Success -> ExternalMetaOutcome.Resolved(result.data)
@@ -545,7 +568,7 @@ internal fun HomeViewModel.onItemFocusPipeline(item: MetaPreview) {
                 viewModelScope.launch {
                     metaRepository.getMetaFromAllAddons(
                         type = item.apiType,
-                        id = item.id
+                        id = resolveMetadataId(item)
                     ).first { it !is NetworkResult.Loading }
                 }
             }
@@ -584,7 +607,7 @@ internal fun HomeViewModel.onItemFocusPipeline(item: MetaPreview) {
                     launch {
                         metaRepository.getMetaFromAllAddons(
                             type = item.apiType,
-                            id = item.id
+                            id = resolveMetadataId(item)
                         ).first { it !is NetworkResult.Loading }
                     }
                 }
@@ -598,7 +621,7 @@ internal fun HomeViewModel.onItemFocusPipeline(item: MetaPreview) {
             // - tmdbEnabledForCurrentLayout: controls TMDB enrichment
             // - externalMetaPrefetchEnabled: controls external meta addon fetch
             val tmdbDeferred = if (tmdbEnabledForCurrentLayout && item.id !in prefetchedTmdbIds) {
-                val tmdbId = runCatching { tmdbService.ensureTmdbId(item.id, item.apiType) }.getOrNull()
+                val tmdbId = runCatching { resolveTmdbIdForEnrichment(item) }.getOrNull()
                 if (tmdbId != null) async {
                     runCatching {
                         tmdbMetadataService.fetchEnrichment(
@@ -669,7 +692,7 @@ internal fun HomeViewModel.onItemFocusPipeline(item: MetaPreview) {
                 viewModelScope.launch {
                     metaRepository.getMetaFromAllAddons(
                         type = item.apiType,
-                        id = item.id
+                        id = resolveMetadataId(item)
                     ).first { it !is NetworkResult.Loading }
                 }
             }
@@ -719,7 +742,7 @@ internal fun HomeViewModel.preloadAdjacentItemPipeline(item: MetaPreview) {
         try {
             // Launch TMDB and external meta addon fetch in parallel (same as focused pipeline).
             val tmdbDeferred = if (tmdbEnabledForCurrentLayout) {
-                val tmdbId = runCatching { tmdbService.ensureTmdbId(item.id, item.apiType) }.getOrNull()
+                val tmdbId = runCatching { resolveTmdbIdForEnrichment(item) }.getOrNull()
                 if (tmdbId != null) async {
                     runCatching {
                         tmdbMetadataService.fetchEnrichment(
@@ -773,7 +796,7 @@ internal fun HomeViewModel.preloadAdjacentItemPipeline(item: MetaPreview) {
                 viewModelScope.launch {
                     metaRepository.getMetaFromAllAddons(
                         type = item.apiType,
-                        id = item.id
+                        id = resolveMetadataId(item)
                     ).first { it !is NetworkResult.Loading }
                 }
             }
@@ -1048,7 +1071,7 @@ internal suspend fun HomeViewModel.enrichHeroItemsPipeline(
                 semaphore.withPermit {
                     try {
                         val tmdbDeferred = async {
-                            val tmdbId = tmdbService.ensureTmdbId(item.id, item.apiType) ?: return@async null
+                            val tmdbId = resolveTmdbIdForEnrichment(item) ?: return@async null
                             tmdbId.toIntOrNull()?.let { numericId ->
                                 runCatching { tmdbService.tmdbToImdb(numericId, item.apiType) }
                             }

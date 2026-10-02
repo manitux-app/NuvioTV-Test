@@ -1,9 +1,11 @@
 package com.nuvio.tv.domain.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PluginCatalogTest {
@@ -36,6 +38,27 @@ class PluginCatalogTest {
         assertNull(preview.imdbId)
         assertEquals("2024", preview.releaseInfo)
         assertEquals(content.stableId(), preview.id)
+    }
+
+    @Test
+    fun `opaque catalog ID is only sent back to its own stream plugin`() {
+        val otherScraper = "other"
+        assertEquals(content.contentId, content.streamRequestIdFor(source.scraperId))
+        assertNull(content.streamRequestIdFor(null))
+        assertNull(content.streamRequestIdFor(otherScraper))
+
+        val external = content.copy(externalIds = PluginExternalIds(tmdbId = "42"))
+        assertEquals("42", external.streamRequestIdFor(null))
+        assertEquals("42", external.streamRequestIdFor(otherScraper))
+    }
+
+    @Test
+    fun `plugin pagination requires a non-empty page and advancing cursor`() {
+        val item = PluginCatalogItem(content, "Film")
+        assertTrue(PluginCatalogPage(listOf(item), "next").hasNextPageAfter(null, true))
+        assertFalse(PluginCatalogPage(emptyList(), "next").hasNextPageAfter(null, true))
+        assertFalse(PluginCatalogPage(listOf(item), "same").hasNextPageAfter("same", true))
+        assertFalse(PluginCatalogPage(listOf(item), "next").hasNextPageAfter(null, false))
     }
 
     @Test

@@ -32,6 +32,7 @@ class TmdbService @Inject constructor(
 
     private val imdbToTmdbInFlight = ConcurrentHashMap<String, CompletableDeferred<Int?>>()
     private val tmdbToImdbInFlight = ConcurrentHashMap<String, CompletableDeferred<String?>>()
+    private val titleToTmdbCache = ConcurrentHashMap<String, String>()
     
     // Mutex for thread-safe cache operations
     private val cacheMutex = Mutex()
@@ -245,6 +246,68 @@ class TmdbService @Inject constructor(
         Log.w(TAG, "Unknown video ID format: $videoId")
         return null
     }
+
+    /**
+     * Resolves a provider catalog item that has no external ID. The provider identity remains
+     * opaque; this result is used only for optional metadata and artwork enrichment.
+     */
+    suspend fun findTmdbIdByTitle(
+        title: String,
+        year: Int?,
+        mediaType: String,
+        language: String? = null
+    ): String? = withContext(Dispatchers.IO) {
+        val normalizedType = normalizeMediaType(mediaType)
+        val normalizedTitle = title.trim()
+        if (normalizedTitle.isBlank()) return@withContext null
+        val cacheKey = "$normalizedType:$year:${normalizedTitle.lowercase()}"
+        if (titleToTmdbCache.containsKey(cacheKey)) return@withContext titleToTmdbCache[cacheKey]
+
+        try {
+            val response = when (normalizedType) {
+                "tv", "series" -> tmdbApi.searchTv(normalizedTitle, TMDB_API_KEY, year, language)
+                else -> tmdbApi.searchMovies(normalizedTitle, TMDB_API_KEY, year, language)
+            }
+            if (!response.isSuccessful) {
+                Log.w(TAG, "TMDB title search failed for $normalizedTitle: ${response.code()}")
+                return@withContext null
+            }
+            val result = response.body()?.results.orEmpty()
+                .sortedWith(compareByDescending<com.nuvio.tv.data.remote.api.TmdbDiscoverResult> {
+                    titleMatches(normalizedTitle, it)
+                }.thenByDescending { candidateYearMatches(year, it, normalizedType) })
+                .firstOrNull()
+                ?.id
+                ?.toString()
+            if (result != null) titleToTmdbCache[cacheKey] = result
+            result
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "TMDB title search failed for $normalizedTitle", e)
+            null
+        }
+    }
+
+    private fun titleMatches(title: String, result: com.nuvio.tv.data.remote.api.TmdbDiscoverResult): Boolean {
+        val target = normalizeTitle(title)
+        return listOf(result.title, result.name, result.originalTitle, result.originalName)
+            .filterNotNull()
+            .any { normalizeTitle(it) == target }
+    }
+
+    private fun candidateYearMatches(
+        year: Int?,
+        result: com.nuvio.tv.data.remote.api.TmdbDiscoverResult,
+        mediaType: String
+    ): Boolean = year != null && (if (mediaType == "tv" || mediaType == "series") {
+        result.firstAirDate
+    } else {
+        result.releaseDate
+    })?.take(4)?.toIntOrNull() == year
+
+    private fun normalizeTitle(value: String): String =
+        value.lowercase().filter(Char::isLetterOrDigit)
     
     /**
      * Normalize media type to consistent format

@@ -50,7 +50,28 @@ class PluginBinaryFetchTest {
         }
     }
 
-    private fun fetch(url: String, bodyKind: String, body: String) =
+    @Test
+    fun `catalog fetch uses the catalog resolver response path`() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("catalog"))
+
+            val response = fetch(
+                url = server.url("/catalog").toString(),
+                bodyKind = "none",
+                body = "",
+                isCatalogExecution = true
+            )
+
+            assertEquals("catalog", response.get("body").asString)
+        }
+    }
+
+    private fun fetch(
+        url: String,
+        bodyKind: String,
+        body: String,
+        isCatalogExecution: Boolean = false
+    ) =
         PluginRuntime::class.java.getDeclaredMethod(
             "performNativeFetch",
             String::class.java,
@@ -58,7 +79,9 @@ class PluginBinaryFetchTest {
             String::class.java,
             String::class.java,
             String::class.java,
-            MutableSet::class.java
+            Boolean::class.javaPrimitiveType,
+            MutableSet::class.java,
+            Boolean::class.javaPrimitiveType
         ).apply { isAccessible = true }
             .invoke(
                 PluginRuntime(),
@@ -67,7 +90,9 @@ class PluginBinaryFetchTest {
                 """{"Content-Type":"application/octet-stream"}""",
                 bodyKind,
                 body,
-                mutableSetOf<Call>()
+                true,
+                mutableSetOf<Call>(),
+                isCatalogExecution
             )
             .let { JsonParser.parseString(it as String).asJsonObject }
 }

@@ -17,6 +17,7 @@ import com.nuvio.tv.domain.model.mergePluginCatalogPage
 import com.nuvio.tv.domain.model.nextCatalogSkip
 import com.nuvio.tv.domain.model.PluginCatalogDescriptor
 import com.nuvio.tv.domain.model.PluginContentRegistry
+import com.nuvio.tv.domain.model.hasNextPageAfter
 import com.nuvio.tv.domain.model.skipStep
 import com.nuvio.tv.domain.model.stableKey
 import com.nuvio.tv.domain.model.WatchedItem
@@ -560,7 +561,10 @@ internal fun HomeViewModel.loadMoreCatalogItemsPipeline(catalogId: String, addon
                 val nextPage = currentRow.copy(
                     items = page.items.map { it.toMetaPreview() },
                     isLoading = false,
-                    hasMore = descriptor.supportsPagination && page.nextPageToken != null,
+                    hasMore = page.hasNextPageAfter(
+                        requestedPageToken = currentRow.pluginNextPageToken,
+                        supportsPagination = descriptor.supportsPagination
+                    ),
                     pluginNextPageToken = page.nextPageToken
                 )
                 updateCatalogRow(key) { it.mergePluginCatalogPage(nextPage) }
