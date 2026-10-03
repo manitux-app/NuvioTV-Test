@@ -13,6 +13,7 @@ import com.nuvio.tv.core.tmdb.TmdbMetadataService
 import com.nuvio.tv.core.tmdb.TmdbService
 import com.nuvio.tv.data.local.AuthSessionNoticeDataStore
 import com.nuvio.tv.data.local.CollectionsDataStore
+import com.nuvio.tv.data.local.HomeCatalogSelectionDataStore
 import com.nuvio.tv.data.local.LayoutPreferenceDataStore
 import com.nuvio.tv.data.local.PlayerSettingsDataStore
 import com.nuvio.tv.data.local.StartupAuthNotice
@@ -79,6 +80,7 @@ class HomeViewModel @Inject constructor(
     internal val episodeShuffleStore: com.nuvio.tv.data.local.EpisodeShuffleStore,
     internal val episodeShuffle: com.nuvio.tv.domain.model.EpisodeShuffle,
     internal val collectionsDataStore: CollectionsDataStore,
+    internal val homeCatalogSelectionDataStore: HomeCatalogSelectionDataStore,
     internal val layoutPreferenceDataStore: LayoutPreferenceDataStore,
     internal val playerSettingsDataStore: PlayerSettingsDataStore,
     internal val tmdbSettingsDataStore: TmdbSettingsDataStore,
@@ -232,6 +234,8 @@ class HomeViewModel @Inject constructor(
     internal val catalogOrder = mutableListOf<String>()
     internal var addonsCache: List<Addon> = emptyList()
     internal var pluginScrapersCache: List<com.nuvio.tv.domain.model.ScraperInfo> = emptyList()
+    private var savedHomeCatalogSourceId: String? = null
+    private var homeCatalogSelectionRestored = false
     internal var collectionsCache: List<Collection> = emptyList()
     internal var homeCatalogOrderKeys: List<String> = emptyList()
     internal var disabledHomeCatalogKeys: Set<String> = emptySet()
@@ -368,6 +372,7 @@ class HomeViewModel @Inject constructor(
         observeHomePluginSources()
         viewModelScope.launch {
             profileManager.activeProfileReady.first { it }
+            restoreHomeCatalogSelection()
             observeLayoutPreferences()
             observeModernHomePresentation()
             loadContinueWatching()
@@ -425,6 +430,7 @@ class HomeViewModel @Inject constructor(
                     _movieWatchedStatus.value = emptyMap()
                     _pendingWatchedBatch.value = emptyMap()
                     _uiState.update { it.copy(movieWatchedStatus = emptyMap()) }
+                    restoreHomeCatalogSelection()
                 }
             }
         }
@@ -454,12 +460,14 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             pluginManager.enabledScrapers.collectLatest { scrapers ->
                 pluginScrapersCache = scrapers
-                updateHomeSources()
+                if (updateHomeSources() && homeCatalogSelectionRestored) {
+                    loadSelectedHomeCatalogSource()
+                }
             }
         }
     }
 
-    internal fun updateHomeSources() {
+    internal fun updateHomeSources(): Boolean {
         val catalogSources = addonsCache
             .filter { it.catalogs.isNotEmpty() }
             .map { HomeMenuSource("addon:${it.id}", it.name) } +
@@ -468,17 +476,26 @@ class HomeViewModel @Inject constructor(
             pluginScrapersCache
                 .filter { it.supportsStreams }
                 .map { HomeMenuSource("plugin:${it.id}", it.name) }
-        _uiState.update { current -> current.copy(
+        var selectionChanged = false
+        _uiState.update { current ->
+            val selectedCatalogSourceId = savedHomeCatalogSourceId
+                ?.takeIf { id -> catalogSources.any { it.id == id } }
+                ?: current.selectedCatalogSourceId?.takeIf { id -> catalogSources.any { it.id == id } }
+                ?: catalogSources.firstOrNull()?.id
+            selectionChanged = current.selectedCatalogSourceId != selectedCatalogSourceId
+            current.copy(
                     catalogSources = catalogSources,
                     streamSources = streamSources,
-                    selectedCatalogSourceId = current.selectedCatalogSourceId?.takeIf { id -> catalogSources.any { it.id == id } }
-                        ?: catalogSources.firstOrNull()?.id,
+                    selectedCatalogSourceId = selectedCatalogSourceId,
                     selectedStreamSourceId = current.selectedStreamSourceId.takeIf { id -> streamSources.any { it.id == id } }
                         ?: HOME_ALL_STREAM_SOURCES_ID
-        ) }
+            )
+        }
+        return selectionChanged
     }
 
     fun selectHomeCatalogSource(id: String) {
+        savedHomeCatalogSourceId = id
         _uiState.update { current ->
             current.copy(
                 selectedCatalogSourceId = id,
@@ -487,12 +504,26 @@ class HomeViewModel @Inject constructor(
                 } ?: HOME_ALL_STREAM_SOURCES_ID
             )
         }
-        id.removePrefix("addon:").takeIf { id.startsWith("addon:") }?.let { addonId ->
+        viewModelScope.launch { homeCatalogSelectionDataStore.setSelectedSourceId(id) }
+        loadSelectedHomeCatalogSource(id)
+    }
+
+    private suspend fun restoreHomeCatalogSelection() {
+        savedHomeCatalogSourceId = homeCatalogSelectionDataStore.getSelectedSourceId()
+        homeCatalogSelectionRestored = true
+        if (updateHomeSources()) {
+            loadSelectedHomeCatalogSource()
+        }
+    }
+
+    private fun loadSelectedHomeCatalogSource(id: String? = _uiState.value.selectedCatalogSourceId) {
+        val selectedId = id ?: return
+        selectedId.removePrefix("addon:").takeIf { selectedId.startsWith("addon:") }?.let { addonId ->
             addonsCache.firstOrNull { it.id == addonId }?.let { addon ->
                 viewModelScope.launch { loadAllCatalogsPipeline(listOf(addon), forceReload = true) }
             }
         }
-        id.removePrefix("plugin:").takeIf { id.startsWith("plugin:") }?.let { scraperId ->
+        selectedId.removePrefix("plugin:").takeIf { selectedId.startsWith("plugin:") }?.let { scraperId ->
             pluginScrapersCache.firstOrNull { it.id == scraperId }?.let { scraper ->
                 viewModelScope.launch { loadPluginHomeCatalogs(scraper) }
             }

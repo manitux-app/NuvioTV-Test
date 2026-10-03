@@ -139,7 +139,7 @@ internal fun HomeViewModel.observeInstalledAddonsPipeline() {
                 val addons = installedAddons.enabledAddons()
                 addonsCache = addons
                 updateHomeSources()
-                loadAllCatalogsPipeline(addons)
+                loadSelectedHomeCatalogSource()
             }
     }
 }
