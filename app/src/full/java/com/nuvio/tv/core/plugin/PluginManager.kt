@@ -45,6 +45,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.jsoup.parser.Parser
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -845,7 +846,7 @@ class PluginManager @Inject constructor(
         val items = root.getAsJsonArray("items")?.mapNotNull { element ->
             val value = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
             val id = value.string("id") ?: return@mapNotNull null
-            val name = value.string("name") ?: return@mapNotNull null
+            val name = decodePluginCatalogName(value.string("name") ?: return@mapNotNull null)
             val type = ContentType.fromString(value.string("type") ?: return@mapNotNull null)
             if (type != descriptor.type) return@mapNotNull null
             PluginCatalogItem(
@@ -1209,3 +1210,6 @@ class PluginManager @Inject constructor(
         private const val MAX_PARALLEL_DOWNLOADS = 10
     }
 }
+
+internal fun decodePluginCatalogName(name: String): String =
+    Parser.unescapeEntities(name, false)
