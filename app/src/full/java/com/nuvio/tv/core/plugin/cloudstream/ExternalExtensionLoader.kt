@@ -182,6 +182,9 @@ class ExternalExtensionLoader @Inject constructor(
     /** Cache of loaded MainAPI instances by scraper ID */
     private val apiCache = ConcurrentHashMap<String, MainAPI>()
 
+    /** Every provider registered by a DEX; apiCache retains the legacy first provider. */
+    private val apisCache = ConcurrentHashMap<String, List<MainAPI>>()
+
     /** Cache of loaded class loaders by scraper ID */
     private val classLoaderCache = ConcurrentHashMap<String, DexClassLoader>()
 
@@ -260,6 +263,7 @@ class ExternalExtensionLoader @Inject constructor(
      */
     fun loadExtension(scraperId: String): List<MainAPI> {
         // Check cache first
+        apisCache[scraperId]?.let { return it }
         apiCache[scraperId]?.let { return listOf(it) }
         com.nuvio.tv.core.runtime.PluginRuntimeHooks.ensureCloudstreamInitialized()
 
@@ -398,6 +402,7 @@ class ExternalExtensionLoader @Inject constructor(
             // Also cache the first API under the plain scraper ID
             if (apis.isNotEmpty()) {
                 apiCache[scraperId] = apis.first()
+                apisCache[scraperId] = apis
             }
 
             Log.d(TAG, "Loaded extension $scraperId: ${apis.size} providers (${apis.joinToString { it.name }})")
@@ -425,6 +430,21 @@ class ExternalExtensionLoader @Inject constructor(
             apis.firstOrNull()
         }
     }
+
+    /**
+     * Returns every provider registered by an extension.  A .cs3 file can expose
+     * more than one MainAPI, so callers that present provider-owned catalogues
+     * must not silently fall back to the first one.
+     */
+    fun getApis(scraperId: String): List<MainAPI> {
+        return apisCache[scraperId] ?: loadExtension(scraperId)
+    }
+
+    /** Finds a provider using the stable key persisted in [PluginSourceRef]. */
+    fun getApi(scraperId: String, providerKey: String): MainAPI? =
+        getApis(scraperId).singleOrNull { providerKey(it) == providerKey }
+
+    fun providerKey(api: MainAPI): String = "${api.javaClass.name}:${api.name}"
 
     /**
      * Load extension with diagnostic output.
@@ -653,6 +673,7 @@ class ExternalExtensionLoader @Inject constructor(
     }
 
     fun deleteExtension(scraperId: String) {
+        apisCache.remove(scraperId)
         apiCache.keys.filter { it.startsWith(scraperId) }.forEach { apiCache.remove(it) }
         classLoaderCache.remove(scraperId)
         extractorPreloadedIds.remove(scraperId)

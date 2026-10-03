@@ -284,6 +284,7 @@ class StreamRepositoryImpl @Inject constructor(
                                         selectedPluginScraperId = selectedPluginScraperId,
                                         contentUrl = pluginContent?.url,
                                         contentUrlScraperId = pluginContent?.source?.scraperId,
+                                        contentSource = pluginContent?.source,
                                         resultChannel = resultChannel
                                     )
                                     emit(Unit)
@@ -471,6 +472,7 @@ class StreamRepositoryImpl @Inject constructor(
         selectedPluginScraperId: String?,
         contentUrl: String?,
         contentUrlScraperId: String?,
+        contentSource: com.nuvio.tv.domain.model.PluginSourceRef?,
         resultChannel: Channel<AddonStreams>
     ) {
         // Check if plugins are enabled
@@ -497,7 +499,8 @@ class StreamRepositoryImpl @Inject constructor(
                 episode = episode,
                 scraperId = selectedPluginScraperId,
                 contentUrl = contentUrl,
-                contentUrlScraperId = contentUrlScraperId
+                contentUrlScraperId = contentUrlScraperId,
+                contentSource = contentSource
             ).collect { (scraper, results) ->
                 if (results.isNotEmpty()) {
                     val addonName = scraper.pluginAddonName(groupByRepository, repositoriesById)

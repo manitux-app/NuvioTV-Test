@@ -546,6 +546,28 @@ internal fun HomeViewModel.loadMoreCatalogItemsPipeline(catalogId: String, addon
         val source = currentRow.pluginSource
         if (source != null) {
             try {
+                val externalContext = externalCatalogRowContexts[key]
+                if (externalContext != null) {
+                    val (request, rowIndex) = externalContext
+                    val requestedPage = currentRow.pluginNextPageToken?.toIntOrNull() ?: 2
+                    val externalPage = pluginManager.executeExternalCatalog(request, requestedPage)
+                    val externalRow = externalPage.rows.getOrNull(rowIndex)
+                    val canContinue = externalRow != null && externalRow.items.isNotEmpty() && externalPage.hasNext
+                    if (externalRow != null) {
+                        PluginContentRegistry.put(externalRow.items)
+                        val nextPage = currentRow.copy(
+                            items = externalRow.items.map { it.toMetaPreview() },
+                            isLoading = false,
+                            hasMore = canContinue,
+                            pluginNextPageToken = if (canContinue) (requestedPage + 1).toString() else null
+                        )
+                        updateCatalogRow(key) { it.mergePluginCatalogPage(nextPage) }
+                        onCatalogRowItemsChanged(key)
+                    } else {
+                        updateCatalogRow(key) { it.copy(isLoading = false, hasMore = false, pluginNextPageToken = null) }
+                    }
+                    return@launch
+                }
                 val scraper = pluginScrapersCache.firstOrNull { it.repositoryId == source.repositoryId && it.id == source.scraperId }
                     ?: return@launch
                 val manifestCatalog = scraper.catalogs.firstOrNull { it.id == catalogId } ?: return@launch

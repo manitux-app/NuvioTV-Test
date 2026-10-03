@@ -27,6 +27,8 @@ import com.nuvio.tv.core.tmdb.TmdbMetadataService
 import com.nuvio.tv.core.tmdb.TmdbService
 import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.LocalScraperResult
+import com.nuvio.tv.domain.model.PluginCatalogPage
+import com.nuvio.tv.domain.model.PluginSourceRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -58,6 +60,48 @@ class ExternalExtensionRunner @Inject constructor(
     private val tmdbMetadataService: TmdbMetadataService,
     private val tmdbService: TmdbService
 ) {
+    suspend fun catalogRequests(
+        repositoryId: String,
+        scraperId: String
+    ): List<ExternalCatalogRequest> = withContext(Dispatchers.IO) {
+        extensionLoader.ensureExtractorsLoaded(listOf(scraperId))
+        extensionLoader.getApis(scraperId)
+            .filter { it.hasMainPage }
+            .flatMap { api -> api.catalogRequests(repositoryId, scraperId, extensionLoader.providerKey(api)) }
+    }
+
+    suspend fun executeCatalog(request: ExternalCatalogRequest, page: Int): ExternalCatalogPage =
+        withContext(Dispatchers.IO) {
+            val api = extensionLoader.getApi(request.source.scraperId, request.source.providerKey!!)
+                ?: return@withContext ExternalCatalogPage(emptyList(), hasNext = false)
+            val response = api.getMainPage(page, request.request)
+                ?: return@withContext ExternalCatalogPage(emptyList(), hasNext = false)
+            ExternalCatalogPage(
+                rows = response.items.mapNotNull { it.toCatalogRow(request.source) },
+                hasNext = response.hasNext
+            )
+        }
+
+    /** Uses the selected catalogue provider directly: load(url) then loadLinks(data). */
+    suspend fun executeCatalogContent(
+        source: PluginSourceRef,
+        contentUrl: String,
+        mediaType: String,
+        season: Int?,
+        episode: Int?
+    ): List<LocalScraperResult> = withContext(Dispatchers.IO) {
+        val api = extensionLoader.getApi(source.scraperId, source.providerKey ?: return@withContext emptyList())
+            ?: return@withContext emptyList()
+        val loaded = api.load(contentUrl) ?: return@withContext emptyList()
+        val data = extractData(loaded, mediaType, season, episode) ?: return@withContext emptyList()
+        val links = java.util.Collections.synchronizedList(mutableListOf<ExtractorLink>())
+        val subtitles = java.util.Collections.synchronizedList(mutableListOf<SubtitleFile>())
+        withTimeoutOrNull(LOADLINKS_TIMEOUT_MS) {
+            api.loadLinks(data, false, { subtitles.add(it) }, { links.add(it) })
+        }
+        val domainSubtitles = subtitles.toDomainSubtitles(api.name)
+        links.filterValid().map { it.toLocalScraperResult(api.name, domainSubtitles) }
+    }
     suspend fun execute(
         scraperId: String,
         tmdbId: String,

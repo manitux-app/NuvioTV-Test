@@ -5,6 +5,9 @@ import com.nuvio.tv.core.plugin.cloudstream.toNuvioType
 import com.nuvio.tv.core.plugin.cloudstream.tvTypeFromString
 import com.nuvio.tv.core.plugin.cloudstream.ExternalExtensionLoader
 import com.nuvio.tv.core.plugin.cloudstream.ExternalExtensionRunner
+import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogRequest
+import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogRow
+import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogPage
 import com.nuvio.tv.core.plugin.cloudstream.ExternalRepoParser
 import com.nuvio.tv.data.local.PluginDataStore
 import com.nuvio.tv.domain.model.ExternalPluginEntry
@@ -78,6 +81,16 @@ class PluginManager @Inject constructor(
     private val externalExtensionLoader: ExternalExtensionLoader,
     private val externalExtensionRunner: ExternalExtensionRunner
 ) {
+    /** Enumerates only DEX providers that explicitly advertise a CloudStream main page. */
+    suspend fun externalCatalogRequests(scraper: ScraperInfo): List<ExternalCatalogRequest> {
+        if (scraper.type != RepositoryType.EXTERNAL_DEX) return emptyList()
+        return externalExtensionRunner.catalogRequests(scraper.repositoryId, scraper.id)
+    }
+
+    suspend fun executeExternalCatalog(
+        request: ExternalCatalogRequest,
+        page: Int = 1
+    ): ExternalCatalogPage = externalExtensionRunner.executeCatalog(request, page)
     private val moshi = Moshi.Builder()
         .addLast(KotlinJsonAdapterFactory())
         .build()
@@ -716,7 +729,8 @@ class PluginManager @Inject constructor(
         episode: Int? = null,
         scraperId: String? = null,
         contentUrl: String? = null,
-        contentUrlScraperId: String? = null
+        contentUrlScraperId: String? = null,
+        contentSource: PluginSourceRef? = null
     ): Flow<Pair<ScraperInfo, List<LocalScraperResult>>> = channelFlow {
         val enabledList = enabledStreamScrapers.first()
             .filter { it.supportsType(mediaType) && (scraperId == null || it.id == scraperId) }
@@ -746,7 +760,8 @@ class PluginManager @Inject constructor(
                 try {
                     val results = executeScraperWithSingleFlight(
                         scraper, tmdbId, mediaType, season, episode,
-                        contentUrl?.takeIf { scraper.id == contentUrlScraperId }
+                        contentUrl?.takeIf { scraper.id == contentUrlScraperId },
+                        contentSource?.takeIf { scraper.id == contentUrlScraperId }
                     )
                     if (results.isNotEmpty()) {
                         send(scraper to results)
@@ -767,7 +782,8 @@ class PluginManager @Inject constructor(
         mediaType: String,
         season: Int?,
         episode: Int?,
-        contentUrl: String? = null
+        contentUrl: String? = null,
+        contentSource: PluginSourceRef? = null
     ): List<LocalScraperResult> {
         val cacheKey = "${scraper.id}:$tmdbId:$mediaType:$season:$episode:${contentUrl.orEmpty()}"
         
@@ -785,7 +801,7 @@ class PluginManager @Inject constructor(
         return coroutineScope {
             val deferred = async {
                 scraperSemaphore.withPermit {
-                    executeScraper(scraper, tmdbId, mediaType, season, episode, contentUrl)
+                    executeScraper(scraper, tmdbId, mediaType, season, episode, contentUrl, contentSource)
                 }
             }
             
@@ -811,10 +827,11 @@ class PluginManager @Inject constructor(
         mediaType: String,
         season: Int?,
         episode: Int?,
-        contentUrl: String? = null
+        contentUrl: String? = null,
+        contentSource: PluginSourceRef? = null
     ): List<LocalScraperResult> {
         return when (scraper.type) {
-            RepositoryType.EXTERNAL_DEX -> executeExternalDexScraper(scraper, tmdbId, mediaType, season, episode)
+            RepositoryType.EXTERNAL_DEX -> executeExternalDexScraper(scraper, tmdbId, mediaType, season, episode, contentUrl, contentSource)
             RepositoryType.NUVIO_JS -> executeJsScraper(scraper, tmdbId, mediaType, season, episode, contentUrl)
         }
     }
@@ -938,7 +955,9 @@ class PluginManager @Inject constructor(
         tmdbId: String,
         mediaType: String,
         season: Int?,
-        episode: Int?
+        episode: Int?,
+        contentUrl: String?,
+        contentSource: PluginSourceRef?
     ): List<LocalScraperResult> {
         return try {
             Log.d(TAG, "Executing DEX scraper: ${scraper.name}")
@@ -947,7 +966,15 @@ class PluginManager @Inject constructor(
                 // Wrap on the low-priority pool for the same reason as the JS
                 // path: keep their CPU footprint out of ExoPlayer's way.
                 withContext(pluginDispatcher) {
-                    externalExtensionRunner.execute(scraper.id, tmdbId, mediaType, season, episode)
+                    if (contentUrl != null && contentSource?.kind == RepositoryType.EXTERNAL_DEX &&
+                        contentSource.scraperId == scraper.id
+                    ) {
+                        externalExtensionRunner.executeCatalogContent(
+                            contentSource, contentUrl, mediaType, season, episode
+                        )
+                    } else {
+                        externalExtensionRunner.execute(scraper.id, tmdbId, mediaType, season, episode)
+                    }
                 }
             }
             if (results == null) {
