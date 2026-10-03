@@ -446,6 +446,17 @@ fun HomeScreen(
             }
         }
 
+        // Keep the current catalog visible while a user-selected source is replaced,
+        // but make the in-flight request explicit instead of silently changing rows.
+        if (uiState.isLoading && homeStableGateReleased) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                LoadingIndicator()
+            }
+        }
+
         val startupAuthNotice = uiState.startupAuthNotice
         if (startupAuthNotice != null) {
             Box(

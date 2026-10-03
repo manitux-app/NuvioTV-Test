@@ -139,7 +139,11 @@ internal fun HomeViewModel.observeInstalledAddonsPipeline() {
                 val addons = installedAddons.enabledAddons()
                 addonsCache = addons
                 updateHomeSources()
-                loadSelectedHomeCatalogSource()
+                // Plugin catalogs are loaded by the plugin observer or selection restore.
+                // Loading them here as well races that initial request and duplicates their rows.
+                if (_uiState.value.selectedCatalogSourceId?.startsWith("addon:") == true) {
+                    loadSelectedHomeCatalogSource()
+                }
             }
     }
 }

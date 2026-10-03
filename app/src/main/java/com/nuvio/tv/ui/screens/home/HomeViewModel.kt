@@ -501,26 +501,31 @@ class HomeViewModel @Inject constructor(
                 selectedCatalogSourceId = id,
                 selectedStreamSourceId = id.takeIf { candidate ->
                     candidate.startsWith("plugin:") && current.streamSources.any { it.id == candidate }
-                } ?: HOME_ALL_STREAM_SOURCES_ID
+                } ?: HOME_ALL_STREAM_SOURCES_ID,
+                isLoading = true,
+                error = null
             )
         }
         viewModelScope.launch { homeCatalogSelectionDataStore.setSelectedSourceId(id) }
-        loadSelectedHomeCatalogSource(id)
+        loadSelectedHomeCatalogSource(id, forceReload = true)
     }
 
     private suspend fun restoreHomeCatalogSelection() {
         savedHomeCatalogSourceId = homeCatalogSelectionDataStore.getSelectedSourceId()
         homeCatalogSelectionRestored = true
-        if (updateHomeSources()) {
+        if (updateHomeSources() || !hasAnyCatalogRows()) {
             loadSelectedHomeCatalogSource()
         }
     }
 
-    private fun loadSelectedHomeCatalogSource(id: String? = _uiState.value.selectedCatalogSourceId) {
+    public fun loadSelectedHomeCatalogSource(
+        id: String? = _uiState.value.selectedCatalogSourceId,
+        forceReload: Boolean = false
+    ) {
         val selectedId = id ?: return
         selectedId.removePrefix("addon:").takeIf { selectedId.startsWith("addon:") }?.let { addonId ->
             addonsCache.firstOrNull { it.id == addonId }?.let { addon ->
-                viewModelScope.launch { loadAllCatalogsPipeline(listOf(addon), forceReload = true) }
+                viewModelScope.launch { loadAllCatalogsPipeline(listOf(addon), forceReload = forceReload) }
             }
         }
         selectedId.removePrefix("plugin:").takeIf { selectedId.startsWith("plugin:") }?.let { scraperId ->
