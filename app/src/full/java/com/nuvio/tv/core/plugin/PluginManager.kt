@@ -9,7 +9,9 @@ import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogRequest
 import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogRow
 import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogPage
 import com.nuvio.tv.core.plugin.cloudstream.ExternalRepoParser
+import com.nuvio.tv.core.profile.ProfileManager
 import com.nuvio.tv.data.local.PluginDataStore
+import com.nuvio.tv.data.local.AddonPreferences
 import com.nuvio.tv.domain.model.ExternalPluginEntry
 import com.nuvio.tv.domain.model.LocalScraperResult
 import com.nuvio.tv.domain.model.PluginManifest
@@ -74,6 +76,8 @@ private const val MANIFEST_SUFFIX = "/manifest.json"
 @Singleton
 class PluginManager @Inject constructor(
     private val dataStore: PluginDataStore,
+    private val addonPreferences: AddonPreferences,
+    private val profileManager: ProfileManager,
     private val runtime: PluginRuntime,
     private val pluginSyncService: com.nuvio.tv.core.sync.PluginSyncService,
     private val authManager: com.nuvio.tv.core.auth.AuthManager,
@@ -285,6 +289,50 @@ class PluginManager @Inject constructor(
 
     private var syncJob: kotlinx.coroutines.Job? = null
 
+    /**
+     * Default plugin repositories need to be installed through this manager so their manifests,
+     * scraper metadata and code are all stored together. An explicitly saved empty list remains
+     * empty, allowing users to remove every repository without defaults returning on next launch.
+     */
+    suspend fun installDefaultRepositoriesIfNeeded() {
+        profileManager.activeProfileReady.first { it }
+        val activeProfile = profileManager.activeProfile
+        val targetProfileId = if (activeProfile?.usesPrimaryPlugins == true) 1 else profileManager.activeProfileId.value
+        if (dataStore.hasInitializedDefaultRepositories(targetProfileId)) return
+
+        val defaultUrls = addonPreferences.getDefaultPlugins() ?: return
+        Log.i(
+            TAG,
+            "Installing ${defaultUrls.size} default plugin repositories for profile " +
+                targetProfileId
+        )
+        val installationResults = defaultUrls.map { url ->
+            val result = addRepository(url, targetProfileId)
+            result.onFailure { error ->
+                Log.w(TAG, "Failed to install default plugin repository: $url", error)
+            }
+            Log.i(
+                TAG,
+                "Default plugin repository result url=$url success=${result.isSuccess} " +
+                    "stored=${dataStore.getRepositories(targetProfileId).size}"
+            )
+            result
+        }
+        if (installationResults.all { it.isSuccess }) {
+            dataStore.saveRepositories(
+                installationResults.map { it.getOrThrow() },
+                targetProfileId,
+                bypassProfileWriteProtection = true
+            )
+            dataStore.markDefaultRepositoriesInitialized(targetProfileId)
+            Log.i(
+                TAG,
+                "Default plugin repository setup completed stored=" +
+                    dataStore.getRepositories(targetProfileId).size
+            )
+        }
+    }
+
     private fun triggerRemoteSync() {
         if (isSyncingFromRemote) {
             Log.d(TAG, "triggerRemoteSync: skipped (syncing from remote), will push after sync")
@@ -321,7 +369,10 @@ class PluginManager @Inject constructor(
      * Add a new repository from manifest URL.
      * Auto-detects format: tries NuvioTV manifest first, then external repo format.
      */
-    suspend fun addRepository(manifestUrl: String): Result<PluginRepository> = withContext(Dispatchers.IO) {
+    suspend fun addRepository(
+        manifestUrl: String,
+        targetProfileId: Int? = null
+    ): Result<PluginRepository> = withContext(Dispatchers.IO) {
         try {
             // Resolve short codes (e.g. "cspr", "0094") via cutt.ly redirect
             val resolvedUrl = if (isShortCode(manifestUrl)) {
@@ -335,7 +386,7 @@ class PluginManager @Inject constructor(
             }
 
             val sanitizedUrl = resolvedUrl.trimEnd('/')
-            val existingRepository = dataStore.repositories.first()
+            val existingRepository = dataStore.getRepositories(targetProfileId ?: profileManager.activeProfileId.value)
                 .find { normalizeUrl(it.url) == normalizeUrl(sanitizedUrl) }
             if (existingRepository != null) {
                 return@withContext Result.success(existingRepository)
@@ -360,7 +411,7 @@ class PluginManager @Inject constructor(
 
             val manifest = fetchManifest(canonicalManifestUrl)
             if (manifest != null) {
-                return@withContext addNuvioRepository(canonicalManifestUrl, manifest)
+                return@withContext addNuvioRepository(canonicalManifestUrl, manifest, targetProfileId)
             }
 
             // If we haven't tried external format yet, try it now
@@ -423,7 +474,8 @@ class PluginManager @Inject constructor(
 
     private suspend fun addNuvioRepository(
         canonicalManifestUrl: String,
-        manifest: PluginManifest
+        manifest: PluginManifest,
+        targetProfileId: Int? = null
     ): Result<PluginRepository> {
         val repo = PluginRepository(
             id = UUID.randomUUID().toString(),
@@ -435,8 +487,9 @@ class PluginManager @Inject constructor(
             type = RepositoryType.NUVIO_JS
         )
 
-        dataStore.addRepository(repo)
-        downloadJsScrapers(repo.id, canonicalManifestUrl, manifest.scrapers)
+        val profileId = targetProfileId ?: profileManager.activeProfileId.value
+        dataStore.addRepository(repo, profileId, bypassProfileWriteProtection = targetProfileId != null)
+        downloadJsScrapers(repo.id, canonicalManifestUrl, manifest.scrapers, profileId, targetProfileId != null)
 
         Log.d(TAG, "NuvioTV repository added: ${repo.name} with ${manifest.scrapers.size} scrapers")
         triggerRemoteSync()
@@ -448,7 +501,7 @@ class PluginManager @Inject constructor(
         parseResult: com.nuvio.tv.core.plugin.cloudstream.ExternalRepoParseResult
     ): Result<PluginRepository> {
         // Prevent duplicate repos by URL
-        val existingRepo = dataStore.repositories.first()
+        val existingRepo = dataStore.getRepositories()
             .find { normalizeUrl(it.url) == normalizeUrl(repoUrl) }
         if (existingRepo != null) {
             Log.d(TAG, "External repository already exists: ${existingRepo.name} (${existingRepo.url})")
@@ -479,7 +532,7 @@ class PluginManager @Inject constructor(
      */
     suspend fun removeRepository(repoId: String) {
         val scraperList = dataStore.scrapers.first()
-        val repo = dataStore.repositories.first().find { it.id == repoId }
+        val repo = dataStore.getRepositories().find { it.id == repoId }
 
         // Remove all scrapers from this repo
         scraperList.filter { it.repositoryId == repoId }.forEach { scraper ->
@@ -523,7 +576,7 @@ class PluginManager @Inject constructor(
             .distinctBy { normalizeUrl(it.url) }
         val remoteUrlSet = normalizedRemote.map { normalizeUrl(it.url) }.toSet()
 
-        val initialLocalRepos = dataStore.repositories.first()
+        val initialLocalRepos = dataStore.getRepositories()
         val initialLocalByNormalizedUrl = initialLocalRepos.associateBy { normalizeUrl(it.url) }
         val shouldRemoveMissingLocal = if (removeMissingLocal && normalizedRemote.isEmpty() && initialLocalRepos.isNotEmpty()) {
             Log.w(
@@ -556,7 +609,7 @@ class PluginManager @Inject constructor(
             }
         }
 
-        val currentRepos = dataStore.repositories.first()
+        val currentRepos = dataStore.getRepositories()
         val currentByNormalizedUrl = currentRepos.associateBy { normalizeUrl(it.url) }
         val remoteOrderedRepos = normalizedRemote
             .mapNotNull { currentByNormalizedUrl[normalizeUrl(it.url)] }
@@ -586,7 +639,7 @@ class PluginManager @Inject constructor(
      */
     suspend fun refreshRepository(repoId: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val repo = dataStore.repositories.first().find { it.id == repoId }
+            val repo = dataStore.getRepositories().find { it.id == repoId }
                 ?: return@withContext Result.failure(Exception("Repository not found"))
 
             if (repo.type == RepositoryType.EXTERNAL_DEX) {
@@ -1066,10 +1119,12 @@ class PluginManager @Inject constructor(
     private suspend fun downloadJsScrapers(
         repoId: String,
         manifestUrl: String,
-        scraperInfos: List<ScraperManifestInfo>
+        scraperInfos: List<ScraperManifestInfo>,
+        profileId: Int = profileManager.activeProfileId.value,
+        bypassProfileWriteProtection: Boolean = false
     ) = withContext(Dispatchers.IO) {
         val baseUrl = manifestUrl.substringBeforeLast("/")
-        val existingScrapers = dataStore.scrapers.first().toMutableList()
+        val existingScrapers = dataStore.getScrapers(profileId).toMutableList()
         
         scraperInfos.forEach { info ->
             try {
@@ -1148,7 +1203,7 @@ class PluginManager @Inject constructor(
                 )
                 
                 // Save code
-                dataStore.saveScraperCode(scraperId, code)
+                dataStore.saveScraperCode(scraperId, code, profileId)
                 
                 // Update scraper list
                 existingScrapers.removeAll { it.id == scraperId }
@@ -1161,7 +1216,7 @@ class PluginManager @Inject constructor(
             }
         }
         
-        dataStore.saveScrapers(existingScrapers)
+        dataStore.saveScrapers(existingScrapers, profileId, bypassProfileWriteProtection)
     }
 
     /**

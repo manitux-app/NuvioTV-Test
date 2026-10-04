@@ -39,8 +39,7 @@ class PluginDataStore @Inject constructor(
         return if (active != null && active.usesPrimaryPlugins) 1 else profileManager.activeProfileId.value
     }
 
-    private fun store(profileId: Int = effectiveProfileId()) =
-        factory.get(profileId, FEATURE)
+    private fun store(profileId: Int = effectiveProfileId()) = factory.get(profileId, FEATURE)
 
     private val effectiveProfileIdFlow: Flow<Int> = combine(
         profileManager.activeProfileId,
@@ -51,6 +50,7 @@ class PluginDataStore @Inject constructor(
     }.distinctUntilChanged()
 
     private val repositoriesKey = stringPreferencesKey("repositories")
+    private val defaultRepositoriesInitializedKey = booleanPreferencesKey("default_repositories_initialized")
     private val scrapersKey = stringPreferencesKey("scrapers")
     private val pluginsEnabledKey = booleanPreferencesKey("plugins_enabled")
     private val groupStreamsByRepositoryKey = booleanPreferencesKey(GROUP_STREAMS_BY_REPOSITORY)
@@ -65,12 +65,12 @@ class PluginDataStore @Inject constructor(
     )
 
     // Plugin code directory - per-profile
-    val codeDir: File
-        get() {
-            val pid = effectiveProfileId()
-            val dirName = if (pid == 1) "plugin_code" else "plugin_code_p${pid}"
-            return File(context.filesDir, dirName)
-        }
+    private fun codeDir(profileId: Int): File {
+        val dirName = if (profileId == 1) "plugin_code" else "plugin_code_p${profileId}"
+        return File(context.filesDir, dirName)
+    }
+
+    val codeDir: File get() = codeDir(effectiveProfileId())
 
     private suspend fun ensureCodeDir(): File = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         codeDir.also { it.mkdirs() }
@@ -79,49 +79,84 @@ class PluginDataStore @Inject constructor(
     // Repositories
     val repositories: Flow<List<PluginRepository>> = effectiveProfileIdFlow.flatMapLatest { pid ->
         factory.get(pid, FEATURE).data.map { prefs ->
-            prefs[repositoriesKey]?.let { json ->
-                try {
-                    moshi.adapter<List<PluginRepository>>(repoListType).fromJson(json) ?: emptyList()
-                } catch (e: Exception) {
-                    emptyList()
-                }
-            } ?: emptyList()
+            prefs[repositoriesKey]?.let(::parseRepositories).orEmpty()
         }
     }
 
-    suspend fun saveRepositories(repos: List<PluginRepository>) {
+    private fun parseRepositories(json: String): List<PluginRepository> =
+        try {
+            moshi.adapter<List<PluginRepository>>(repoListType).fromJson(json) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+    /** Returns the current persisted list without relying on an asynchronously collected flow. */
+    suspend fun getRepositories(profileId: Int = effectiveProfileId()): List<PluginRepository> =
+        store(profileId).data.first()[repositoriesKey]?.let(::parseRepositories).orEmpty()
+
+    /** Whether all default repositories have completed their initial setup for this profile. */
+    suspend fun hasInitializedDefaultRepositories(profileId: Int = effectiveProfileId()): Boolean =
+        store(profileId).data.first()[defaultRepositoriesInitializedKey] ?: false
+
+    suspend fun markDefaultRepositoriesInitialized(profileId: Int = effectiveProfileId()) {
+        store(profileId).edit { prefs ->
+            prefs[defaultRepositoriesInitializedKey] = true
+        }
+    }
+
+    suspend fun saveRepositories(
+        repos: List<PluginRepository>,
+        profileId: Int = effectiveProfileId(),
+        bypassProfileWriteProtection: Boolean = false
+    ) {
             val active = profileManager.activeProfile
-            if (active != null && !active.isPrimary && active.usesPrimaryPlugins) return
+            if (!bypassProfileWriteProtection && active != null && !active.isPrimary && active.usesPrimaryPlugins) return
         val json = moshi.adapter<List<PluginRepository>>(repoListType).toJson(repos)
-        store().edit { prefs ->
+        store(profileId).edit { prefs ->
             prefs[repositoriesKey] = json
         }
     }
 
-    suspend fun addRepository(repo: PluginRepository) {
+    suspend fun addRepository(
+        repo: PluginRepository,
+        profileId: Int = effectiveProfileId(),
+        bypassProfileWriteProtection: Boolean = false
+    ) {
             val active = profileManager.activeProfile
-            if (active != null && !active.isPrimary && active.usesPrimaryPlugins) return
-        val current = repositories.first().toMutableList()
-        current.removeAll { it.id == repo.id }
-        current.add(repo)
-        saveRepositories(current)
+            if (!bypassProfileWriteProtection && active != null && !active.isPrimary && active.usesPrimaryPlugins) return
+        store(profileId).edit { prefs ->
+            val current = prefs[repositoriesKey]
+                ?.let(::parseRepositories)
+                .orEmpty()
+                .toMutableList()
+            current.removeAll { it.id == repo.id }
+            current.add(repo)
+            prefs[repositoriesKey] = moshi.adapter<List<PluginRepository>>(repoListType).toJson(current)
+        }
     }
 
     suspend fun removeRepository(repoId: String) {
             val active = profileManager.activeProfile
             if (active != null && !active.isPrimary && active.usesPrimaryPlugins) return
-        val current = repositories.first().toMutableList()
-        current.removeAll { it.id == repoId }
-        saveRepositories(current)
+        store().edit { prefs ->
+            val current = prefs[repositoriesKey]
+                ?.let(::parseRepositories)
+                .orEmpty()
+                .filterNot { it.id == repoId }
+            prefs[repositoriesKey] = moshi.adapter<List<PluginRepository>>(repoListType).toJson(current)
+        }
     }
 
     suspend fun updateRepository(repo: PluginRepository) {
-        val current = repositories.first().toMutableList()
-        val index = current.indexOfFirst { it.id == repo.id }
-        if (index >= 0) {
-            current[index] = repo
-            val json = moshi.adapter<List<PluginRepository>>(repoListType).toJson(current)
-            store().edit { prefs ->
+        store().edit { prefs ->
+            val current = prefs[repositoriesKey]
+                ?.let(::parseRepositories)
+                .orEmpty()
+                .toMutableList()
+            val index = current.indexOfFirst { it.id == repo.id }
+            if (index >= 0) {
+                current[index] = repo
+                val json = moshi.adapter<List<PluginRepository>>(repoListType).toJson(current)
                 prefs[repositoriesKey] = json
             }
         }
@@ -140,11 +175,24 @@ class PluginDataStore @Inject constructor(
         }
     }
 
-    suspend fun saveScrapers(scrapers: List<ScraperInfo>) {
+    suspend fun getScrapers(profileId: Int = effectiveProfileId()): List<ScraperInfo> =
+        store(profileId).data.first()[scrapersKey]?.let { json ->
+            try {
+                moshi.adapter<List<ScraperInfo>>(scraperListType).fromJson(json) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } ?: emptyList()
+
+    suspend fun saveScrapers(
+        scrapers: List<ScraperInfo>,
+        profileId: Int = effectiveProfileId(),
+        bypassProfileWriteProtection: Boolean = false
+    ) {
             val active = profileManager.activeProfile
-            if (active != null && !active.isPrimary && active.usesPrimaryPlugins) return
+            if (!bypassProfileWriteProtection && active != null && !active.isPrimary && active.usesPrimaryPlugins) return
         val json = moshi.adapter<List<ScraperInfo>>(scraperListType).toJson(scrapers)
-        store().edit { prefs ->
+        store(profileId).edit { prefs ->
             prefs[scrapersKey] = json
         }
     }
@@ -178,7 +226,7 @@ class PluginDataStore @Inject constructor(
 
     val groupStreamsByRepository: Flow<Boolean> = effectiveProfileIdFlow.flatMapLatest { pid ->
         factory.get(pid, FEATURE).data.map { prefs ->
-            prefs[groupStreamsByRepositoryKey] ?: false
+            prefs[groupStreamsByRepositoryKey] ?: true
         }
     }
 
@@ -191,12 +239,13 @@ class PluginDataStore @Inject constructor(
     }
 
     // Scraper code storage
-    fun getScraperCodeFile(scraperId: String): File {
-        return File(codeDir, "$scraperId.js")
-    }
+    fun getScraperCodeFile(scraperId: String, profileId: Int = effectiveProfileId()): File =
+        File(codeDir(profileId), "$scraperId.js")
 
-    suspend fun saveScraperCode(scraperId: String, code: String) {
-        val dir = ensureCodeDir()
+    suspend fun saveScraperCode(scraperId: String, code: String, profileId: Int = effectiveProfileId()) {
+        val dir = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            codeDir(profileId).also { it.mkdirs() }
+        }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             File(dir, "$scraperId.js").writeText(code)
         }

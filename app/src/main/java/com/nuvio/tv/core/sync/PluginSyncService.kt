@@ -1,6 +1,7 @@
 package com.nuvio.tv.core.sync
 
 import android.util.Log
+import com.nuvio.tv.BuildConfig
 import com.nuvio.tv.core.auth.AuthManager
 import com.nuvio.tv.core.profile.ProfileManager
 import com.nuvio.tv.data.local.PluginDataStore
@@ -41,6 +42,10 @@ class PluginSyncService @Inject constructor(
      * Uses a SECURITY DEFINER function to handle RLS for linked devices.
      */
     suspend fun pushToRemote(): Result<Unit> = withContext(Dispatchers.IO) {
+        if (!BuildConfig.REMOTE_PLUGIN_SYNC_ENABLED) {
+            Log.i(TAG, "Remote plugin sync is disabled for this build")
+            return@withContext Result.success(Unit)
+        }
         try {
             val activeProfile = profileManager.activeProfile
             val profileId = profileManager.activeProfileId.value
@@ -51,7 +56,7 @@ class PluginSyncService @Inject constructor(
                 return@withContext Result.success(Unit)
             }
 
-            val localRepos = pluginDataStore.repositories.first()
+            val localRepos = pluginDataStore.getRepositories()
             Log.d(TAG, "pushToRemote: localRepos count=${localRepos.size} for profile $profileId")
 
             val params = buildJsonObject {
@@ -83,6 +88,10 @@ class PluginSyncService @Inject constructor(
     }
 
     suspend fun getRemoteRepoUrls(): Result<List<RemotePluginInfo>> = withContext(Dispatchers.IO) {
+        if (!BuildConfig.REMOTE_PLUGIN_SYNC_ENABLED) {
+            Log.i(TAG, "Remote plugin sync is disabled for this build")
+            return@withContext Result.success(emptyList())
+        }
         try {
             val effectiveUserId = authManager.getEffectiveUserId(fallbackToOwnIdOnFailure = false)
                 ?: return@withContext Result.failure(
