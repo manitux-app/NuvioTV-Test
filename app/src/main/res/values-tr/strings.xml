@@ -1661,6 +1661,13 @@
     <string name="stream_player_internal">Dahili Oynatıcı</string>
     <string name="stream_player_external">Harici Oynatıcı</string>
     <string name="stream_filter_all">Tümü</string>
+    <string name="home_repository_filter_content_description">Ana sayfa kaynaklarını depoya göre filtrele</string>
+    <string name="home_repository_filter_title">Depo</string>
+    <string name="home_server_catalogs">Sunucu Tabanlı Kataloglar</string>
+    <string name="home_plugin_catalogs">Eklenti Tabanlı Kataloglar</string>
+    <string name="home_catalog_select">Katalog Seçiniz</string>
+    <string name="home_catalog_selection_title">Katalog Depo Seçimi</string>
+    <string name="home_stream_selection_title">Kaynak Depo Seçimi</string>
     <string name="home_catalog_source">Katalog</string>
     <string name="home_stream_source">Kaynak</string>
 

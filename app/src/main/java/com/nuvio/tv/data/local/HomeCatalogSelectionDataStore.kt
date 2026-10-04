@@ -30,4 +30,10 @@ class HomeCatalogSelectionDataStore @Inject constructor(
             preferences[selectedSourceId] = normalized
         }
     }
+
+    suspend fun clearSelectedSourceId() {
+        store().edit { preferences ->
+            preferences.remove(selectedSourceId)
+        }
+    }
 }

@@ -1770,6 +1770,13 @@
     <string name="stream_player_internal">Internal</string>
     <string name="stream_player_external">External</string>
     <string name="stream_filter_all">All</string>
+    <string name="home_repository_filter_content_description">Filter home sources by repository</string>
+    <string name="home_repository_filter_title">Repository</string>
+    <string name="home_server_catalogs">Server-based catalogs</string>
+    <string name="home_plugin_catalogs">Plugin-based catalogs</string>
+    <string name="home_catalog_select">Select a catalog</string>
+    <string name="home_catalog_selection_title">Catalog Repo Selection</string>
+    <string name="home_stream_selection_title">Source Repo Selection</string>
     <string name="stream_episode_label">S%1$d E%2$d</string>
 
     <string name="player_no_external_player">No external player found</string>

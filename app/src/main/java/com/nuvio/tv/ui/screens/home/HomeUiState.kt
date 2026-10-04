@@ -19,6 +19,10 @@ import com.nuvio.tv.domain.model.WatchProgress
 data class HomeUiState(
     val catalogSources: List<HomeMenuSource> = emptyList(),
     val streamSources: List<HomeMenuSource> = emptyList(),
+    val catalogRepositoryFilters: List<HomeRepositoryFilter> = emptyList(),
+    val streamRepositoryFilters: List<HomeRepositoryFilter> = emptyList(),
+    val selectedCatalogRepositoryFilterId: String = HOME_SERVER_CATALOGS_FILTER_ID,
+    val selectedStreamRepositoryFilterId: String? = null,
     val selectedCatalogSourceId: String? = null,
     val selectedStreamSourceId: String = HOME_ALL_STREAM_SOURCES_ID,
     val catalogRows: List<CatalogRow> = emptyList(),
@@ -85,10 +89,19 @@ data class HomeUiState(
 data class HomeMenuSource(
     val id: String,
     val name: String? = null,
-    @StringRes val nameResId: Int? = null
+    @StringRes val nameResId: Int? = null,
+    val repositoryId: String? = null
+)
+
+@Immutable
+data class HomeRepositoryFilter(
+    val id: String,
+    val name: String,
+    val description: String? = null
 )
 
 const val HOME_ALL_STREAM_SOURCES_ID = "all"
+const val HOME_SERVER_CATALOGS_FILTER_ID = "server-catalogs"
 
 @Immutable
 sealed class ContinueWatchingItem {

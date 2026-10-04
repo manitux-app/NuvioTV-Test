@@ -1,5 +1,6 @@
 package com.nuvio.tv.ui.screens.home
 
+import android.util.Log
 import android.content.Context
 import android.os.SystemClock
 import androidx.compose.runtime.mutableStateMapOf
@@ -34,6 +35,7 @@ import com.nuvio.tv.domain.model.Meta
 import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.PluginCatalogDescriptor
+import com.nuvio.tv.domain.model.PluginRepository
 import com.nuvio.tv.domain.model.PluginSourceRef
 import com.nuvio.tv.domain.model.PluginContentRegistry
 import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogRequest
@@ -64,6 +66,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -235,6 +238,7 @@ class HomeViewModel @Inject constructor(
     internal val catalogOrder = mutableListOf<String>()
     internal var addonsCache: List<Addon> = emptyList()
     internal var pluginScrapersCache: List<com.nuvio.tv.domain.model.ScraperInfo> = emptyList()
+    internal var pluginRepositoriesCache: List<PluginRepository> = emptyList()
     /** One menu source per CloudStream provider; its value contains every main-page category. */
     internal var externalCatalogRequestsCache: Map<String, List<ExternalCatalogRequest>> = emptyMap()
     /** Maps a visible CloudStream shelf to the originating request and response-list position. */
@@ -463,6 +467,14 @@ class HomeViewModel @Inject constructor(
 
     private fun observeHomePluginSources() {
         viewModelScope.launch {
+            pluginManager.repositories.collectLatest { repositories ->
+                pluginRepositoriesCache = repositories
+                if (updateHomeSources() && homeCatalogSelectionRestored) {
+                    loadSelectedHomeCatalogSource()
+                }
+            }
+        }
+        viewModelScope.launch {
             pluginManager.enabledScrapers.collectLatest { scrapers ->
                 pluginScrapersCache = scrapers
                 externalCatalogRequestsCache = scrapers
@@ -480,54 +492,154 @@ class HomeViewModel @Inject constructor(
         val catalogSources = addonsCache
             .filter { it.catalogs.isNotEmpty() }
             .map { HomeMenuSource("addon:${it.id}", it.name) } +
-            pluginScrapersCache.filter { it.catalogs.isNotEmpty() }.map { HomeMenuSource("plugin:${it.id}", it.name) } +
+            pluginScrapersCache.filter { it.catalogs.isNotEmpty() }
+                .map { HomeMenuSource("plugin:${it.id}", it.name, repositoryId = it.repositoryId) } +
                 externalCatalogRequestsCache.map { (id, requests) ->
                     val source = requests.first().source
                     val pluginName = pluginScrapersCache.firstOrNull { it.id == source.scraperId }?.name
                         ?: source.scraperId
-                    HomeMenuSource(id, pluginName)
+                    HomeMenuSource(id, pluginName, repositoryId = source.repositoryId)
                 }
         val streamSources = listOf(HomeMenuSource(HOME_ALL_STREAM_SOURCES_ID, nameResId = R.string.stream_filter_all)) +
             pluginScrapersCache
                 .filter { it.supportsStreams }
-                .map { HomeMenuSource("plugin:${it.id}", it.name) } +
+                .map { HomeMenuSource("plugin:${it.id}", it.name, repositoryId = it.repositoryId) } +
                 externalCatalogRequestsCache.map { (id, requests) ->
                     val source = requests.first().source
                     val pluginName = pluginScrapersCache.firstOrNull { it.id == source.scraperId }?.name
                         ?: source.scraperId
-                    HomeMenuSource(id, pluginName)
+                    HomeMenuSource(id, pluginName, repositoryId = source.repositoryId)
                 }
+        val repositoriesById = pluginRepositoriesCache.associateBy { it.id }
+        val catalogRepositoryFilters = catalogSources
+            .mapNotNull { it.repositoryId }
+            .distinct()
+            .mapNotNull { repositoryId -> repositoriesById[repositoryId] }
+            .map { repository ->
+                HomeRepositoryFilter(repository.id, repository.name, repository.description)
+            }
+        val streamRepositoryFilters = pluginRepositoriesCache.map { repository ->
+            HomeRepositoryFilter(repository.id, repository.name, repository.description)
+        }
         var selectionChanged = false
         _uiState.update { current ->
-            val selectedCatalogSourceId = savedHomeCatalogSourceId
+            val restoredCatalogSource = savedHomeCatalogSourceId
                 ?.takeIf { id -> catalogSources.any { it.id == id } }
-                ?: current.selectedCatalogSourceId?.takeIf { id -> catalogSources.any { it.id == id } }
-                ?: catalogSources.firstOrNull()?.id
+            val selectedCatalogRepositoryFilterId = restoredCatalogSource
+                ?.let { id ->
+                    catalogSources.firstOrNull { it.id == id }?.repositoryId ?: HOME_SERVER_CATALOGS_FILTER_ID
+                }
+                ?: current.selectedCatalogRepositoryFilterId
+                .takeIf { id ->
+                    id == HOME_SERVER_CATALOGS_FILTER_ID || catalogRepositoryFilters.any { it.id == id }
+                }
+                ?: HOME_SERVER_CATALOGS_FILTER_ID
+            val visibleCatalogSources = catalogSources.filterByCatalogRepository(selectedCatalogRepositoryFilterId)
+            val selectedCatalogSourceId = restoredCatalogSource
+                ?.takeIf { id -> visibleCatalogSources.any { it.id == id } }
+                ?: current.selectedCatalogSourceId?.takeIf { id -> visibleCatalogSources.any { it.id == id } }
+                ?: visibleCatalogSources.singleOrNull()?.id
+            val selectedCatalogSource = selectedCatalogSourceId?.let { id ->
+                catalogSources.firstOrNull { it.id == id }
+            }
             selectionChanged = current.selectedCatalogSourceId != selectedCatalogSourceId
             current.copy(
                     catalogSources = catalogSources,
                     streamSources = streamSources,
+                    catalogRepositoryFilters = catalogRepositoryFilters,
+                    streamRepositoryFilters = streamRepositoryFilters,
+                    selectedCatalogRepositoryFilterId = selectedCatalogRepositoryFilterId,
+                    selectedStreamRepositoryFilterId = selectedCatalogSource?.repositoryId
+                        ?: current.selectedStreamRepositoryFilterId
+                            ?.takeIf { id -> streamRepositoryFilters.any { it.id == id } },
                     selectedCatalogSourceId = selectedCatalogSourceId,
-                    selectedStreamSourceId = current.selectedStreamSourceId.takeIf { id -> streamSources.any { it.id == id } }
+                    selectedStreamSourceId = selectedCatalogSourceId
+                        ?.takeIf { id -> streamSources.any { it.id == id } }
+                        ?: current.selectedStreamSourceId.takeIf { id -> streamSources.any { it.id == id } }
                         ?: HOME_ALL_STREAM_SOURCES_ID
             )
         }
         return selectionChanged
     }
 
-    fun selectHomeCatalogSource(id: String) {
-        savedHomeCatalogSourceId = id
+    private fun List<HomeMenuSource>.filterByCatalogRepository(repositoryId: String): List<HomeMenuSource> =
+        if (repositoryId == HOME_SERVER_CATALOGS_FILTER_ID) filter { it.repositoryId == null }
+        else filter { it.repositoryId == repositoryId }
+
+    private fun List<HomeMenuSource>.filterByRepository(repositoryId: String?): List<HomeMenuSource> =
+        if (repositoryId == null) this else filter { it.repositoryId == repositoryId }
+
+    fun selectHomeCatalogRepositoryFilter(id: String) {
+        val catalogSources = _uiState.value.catalogSources.filterByCatalogRepository(id)
+        val selectedCatalogSourceId = catalogSources.singleOrNull()?.id
+        updateCatalogSelection(
+            sourceId = selectedCatalogSourceId,
+            catalogRepositoryFilterId = id,
+            streamRepositoryFilterId = id.takeUnless { it == HOME_SERVER_CATALOGS_FILTER_ID },
+            loadCatalog = selectedCatalogSourceId != null
+        )
+    }
+
+    fun selectHomeStreamRepositoryFilter(id: String?) {
         _uiState.update { current ->
             current.copy(
-                selectedCatalogSourceId = id,
-                selectedStreamSourceId = id.takeIf { candidate -> current.streamSources.any { it.id == candidate } }
+                selectedStreamRepositoryFilterId = id?.takeIf { selectedId ->
+                    current.streamRepositoryFilters.any { it.id == selectedId }
+                },
+                selectedStreamSourceId = current.selectedStreamSourceId.takeIf { sourceId ->
+                    current.streamSources.filterByRepository(id).any { it.id == sourceId }
+                } ?: HOME_ALL_STREAM_SOURCES_ID
+            )
+        }
+    }
+
+    fun selectHomeCatalogSource(id: String) {
+        val source = _uiState.value.catalogSources.firstOrNull { it.id == id } ?: return
+        updateCatalogSelection(
+            sourceId = id,
+            catalogRepositoryFilterId = source.repositoryId ?: HOME_SERVER_CATALOGS_FILTER_ID,
+            streamRepositoryFilterId = source.repositoryId,
+            loadCatalog = true
+        )
+    }
+
+    private fun updateCatalogSelection(
+        sourceId: String?,
+        catalogRepositoryFilterId: String,
+        streamRepositoryFilterId: String?,
+        loadCatalog: Boolean
+    ) {
+        savedHomeCatalogSourceId = sourceId
+        _uiState.update { current ->
+            current.copy(
+                selectedCatalogRepositoryFilterId = catalogRepositoryFilterId,
+                selectedCatalogSourceId = sourceId,
+                selectedStreamRepositoryFilterId = streamRepositoryFilterId,
+                selectedStreamSourceId = sourceId
+                    ?.takeIf { candidate -> current.streamSources.any { it.id == candidate } }
                     ?: HOME_ALL_STREAM_SOURCES_ID,
-                isLoading = true,
+                isLoading = loadCatalog,
                 error = null
             )
         }
-        viewModelScope.launch { homeCatalogSelectionDataStore.setSelectedSourceId(id) }
-        loadSelectedHomeCatalogSource(id, forceReload = true)
+        viewModelScope.launch {
+            if (sourceId == null) homeCatalogSelectionDataStore.clearSelectedSourceId()
+            else homeCatalogSelectionDataStore.setSelectedSourceId(sourceId)
+        }
+        if (loadCatalog) {
+            loadSelectedHomeCatalogSource(sourceId, forceReload = true)
+        } else {
+            clearSelectedHomeCatalog()
+        }
+    }
+
+    private fun clearSelectedHomeCatalog() {
+        catalogLoadGeneration += 1
+        cancelInFlightCatalogLoads()
+        clearCatalogData()
+        synchronized(catalogStateLock) { catalogOrder.clear() }
+        _fullCatalogRows.value = emptyList()
+        _uiState.update { it.copy(catalogRows = emptyList(), homeRows = emptyList(), isLoading = false, error = null) }
     }
 
     private suspend fun restoreHomeCatalogSelection() {
@@ -571,8 +683,8 @@ class HomeViewModel @Inject constructor(
         PluginContentRegistry.selectStreamSource(itemId, source)
     }
 
-    /** Replaces addon rows with the declared home catalogs of one JS plugin. */
-    private suspend fun loadPluginHomeCatalogs(scraper: ScraperInfo) {
+    /** Loads declared JS plugin catalogs as independent shelves, like server catalogs. */
+    private fun loadPluginHomeCatalogs(scraper: ScraperInfo) {
         if (scraper.type != RepositoryType.NUVIO_JS) return
         val descriptors = scraper.catalogs.mapNotNull { catalog ->
             val type = ContentType.fromString(catalog.type)
@@ -586,46 +698,98 @@ class HomeViewModel @Inject constructor(
         }
         if (descriptors.isEmpty()) return
 
+        catalogsLoadInProgress = true
         catalogLoadGeneration += 1
+        val generation = catalogLoadGeneration
         cancelInFlightCatalogLoads()
         clearCatalogData()
         synchronized(catalogStateLock) { catalogOrder.clear() }
         _uiState.update { it.copy(isLoading = true, error = null) }
+        pendingCatalogLoads = descriptors.size
 
         val source = PluginSourceRef(RepositoryType.NUVIO_JS, scraper.repositoryId, scraper.id)
-        try {
-            descriptors.forEach { descriptor ->
-                val page = pluginManager.executeCatalog(scraper, descriptor, language = _currentLocaleTag.value)
-                PluginContentRegistry.put(page.items)
-                val row = CatalogRow(
-                    addonId = "plugin:${scraper.id}",
-                    addonName = scraper.name,
-                    addonBaseUrl = "",
-                    catalogId = descriptor.id,
-                    catalogName = descriptor.name,
-                    type = descriptor.type,
-                    items = page.items.map { it.toMetaPreview() },
-                    hasMore = page.hasNextPageAfter(
-                        requestedPageToken = null,
-                        supportsPagination = descriptor.supportsPagination
-                    ),
-                    supportsSkip = false,
-                    pluginSource = source,
-                    pluginNextPageToken = page.nextPageToken
-                )
-                val key = row.stableKey()
-                synchronized(catalogStateLock) { catalogOrder += key }
-                replaceCatalogRow(key, row)
-                onCatalogRowItemsChanged(key)
-            }
-            _uiState.update { it.copy(isLoading = false) }
-            scheduleUpdateCatalogRows()
-        } catch (error: kotlinx.coroutines.CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            _uiState.update { it.copy(isLoading = false, error = error.message) }
-            scheduleUpdateCatalogRows()
+        descriptors.forEach { descriptor ->
+            loadPluginHomeCatalogPipeline(scraper, descriptor, source, generation)
         }
+    }
+
+    private fun loadPluginHomeCatalogPipeline(
+        scraper: ScraperInfo,
+        descriptor: PluginCatalogDescriptor,
+        source: PluginSourceRef,
+        generation: Long
+    ) {
+        val loadJob = viewModelScope.launch {
+            var hasCountedCompletion = false
+            try {
+                catalogLoadSemaphore.withPermit {
+                    if (generation != catalogLoadGeneration) return@withPermit
+                    Log.d(
+                        TAG,
+                        "Loading plugin home catalog scraperId=${scraper.id} catalogId=${descriptor.id} catalogName=${descriptor.name}"
+                    )
+                    val page = pluginManager.executeCatalog(
+                        scraper,
+                        descriptor,
+                        language = _currentLocaleTag.value
+                    )
+                    if (generation != catalogLoadGeneration) return@withPermit
+                    PluginContentRegistry.put(page.items)
+                    val row = CatalogRow(
+                        addonId = "plugin:${scraper.id}",
+                        addonName = scraper.name,
+                        addonBaseUrl = "",
+                        catalogId = descriptor.id,
+                        catalogName = descriptor.name,
+                        type = descriptor.type,
+                        items = page.items.map { it.toMetaPreview() },
+                        hasMore = page.hasNextPageAfter(
+                            requestedPageToken = null,
+                            supportsPagination = descriptor.supportsPagination
+                        ),
+                        supportsSkip = false,
+                        pluginSource = source,
+                        pluginNextPageToken = page.nextPageToken
+                    )
+                    val key = row.stableKey()
+                    synchronized(catalogStateLock) { catalogOrder += key }
+                    replaceCatalogRow(key, row)
+                    onCatalogRowItemsChanged(key)
+                    if (!hasCountedCompletion) {
+                        pendingCatalogLoads = (pendingCatalogLoads - 1).coerceAtLeast(0)
+                        hasCountedCompletion = true
+                    }
+                    Log.d(
+                        TAG,
+                        "Plugin home catalog loaded scraperId=${scraper.id} catalogId=${descriptor.id} items=${page.items.size} pending=$pendingCatalogLoads"
+                    )
+                    if (pendingCatalogLoads == 0) {
+                        catalogsLoadInProgress = false
+                        _uiState.update { it.copy(isLoading = false) }
+                    }
+                    // Show the first available shelf immediately; remaining jobs keep loading.
+                    scheduleUpdateCatalogRows()
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(
+                    TAG,
+                    "Plugin home catalog failed scraperId=${scraper.id} catalogId=${descriptor.id}",
+                    error
+                )
+                if (generation == catalogLoadGeneration && !hasCountedCompletion) {
+                    pendingCatalogLoads = (pendingCatalogLoads - 1).coerceAtLeast(0)
+                    hasCountedCompletion = true
+                    if (pendingCatalogLoads == 0) {
+                        catalogsLoadInProgress = false
+                        _uiState.update { it.copy(isLoading = false, error = error.message) }
+                    }
+                    scheduleUpdateCatalogRows()
+                }
+            }
+        }
+        registerCatalogLoadJob(loadJob)
     }
 
     /** Loads every main-page category for one selected CloudStream provider into its own shelf. */

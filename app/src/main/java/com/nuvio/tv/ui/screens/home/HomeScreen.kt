@@ -7,16 +7,19 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import android.util.Log
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +47,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.onSizeChanged
@@ -61,6 +65,8 @@ import androidx.tv.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Check
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -92,6 +98,7 @@ private data class HomePosterOptionsTarget(
 )
 
 private const val HOME_STABLE_GATE_TIMEOUT_MS = 5_000L
+private val HOME_SOURCE_CONTROL_HEIGHT = 52.dp
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -142,8 +149,8 @@ fun HomeScreen(
     val hasHeroContent = uiState.heroItems.isNotEmpty()
     val modernPresentationReady =
         uiState.homeLayout != HomeLayout.MODERN ||
-            modernPresentation.rows.list.isNotEmpty() ||
-            (uiState.heroSectionEnabled && hasHeroContent && !hasCatalogContent && !hasCollectionContent)
+                modernPresentation.rows.list.isNotEmpty() ||
+                (uiState.heroSectionEnabled && hasHeroContent && !hasCatalogContent && !hasCollectionContent)
     var showHomeContentWithAnimation by rememberSaveable { mutableStateOf(false) }
     var hasShownInitialHomeContent by rememberSaveable { mutableStateOf(false) }
     // Once we've shown stable home content, never go back to loading gate.
@@ -185,8 +192,10 @@ fun HomeScreen(
         }
     }
     val onContinueWatchingClickStable = remember(onContinueWatchingClick) { onContinueWatchingClick }
-    val onContinueWatchingStartFromBeginningStable = remember(onContinueWatchingStartFromBeginning) { onContinueWatchingStartFromBeginning }
-    val onContinueWatchingPlayManuallyStable = remember(onContinueWatchingPlayManually) { onContinueWatchingPlayManually }
+    val onContinueWatchingStartFromBeginningStable =
+        remember(onContinueWatchingStartFromBeginning) { onContinueWatchingStartFromBeginning }
+    val onContinueWatchingPlayManuallyStable =
+        remember(onContinueWatchingPlayManually) { onContinueWatchingPlayManually }
     val onNavigateToCatalogSeeAllStable = remember(onNavigateToCatalogSeeAll) { onNavigateToCatalogSeeAll }
     val onNavigateToFolderDetailStable = remember(onNavigateToFolderDetail) { onNavigateToFolderDetail }
     val onRemoveContinueWatchingStable = remember(viewModel) {
@@ -217,7 +226,10 @@ fun HomeScreen(
             // When addons are installed, require at least one catalog row.
             (hasCatalogContent || uiState.installedAddonsCount == 0)
         ) {
-            Log.d("HomeGate", "RELEASE: catalogs=$hasCatalogContent cwResolved=$initialCwResolved cwItems=${uiState.continueWatchingItems.size} addons=${uiState.installedAddonsCount}")
+            Log.d(
+                "HomeGate",
+                "RELEASE: catalogs=$hasCatalogContent cwResolved=$initialCwResolved cwItems=${uiState.continueWatchingItems.size} addons=${uiState.installedAddonsCount}"
+            )
             homeStableGateReleased = true
         }
     }
@@ -229,7 +241,10 @@ fun HomeScreen(
         // no addons at all.
         delay(HOME_STABLE_GATE_TIMEOUT_MS)
         if (!homeStableGateReleased) {
-            Log.d("HomeGate", "RELEASE timeout: isLoading=${uiState.isLoading} cwResolved=$initialCwResolved catalogs=$hasCatalogContent cwItems=${uiState.continueWatchingItems.size}")
+            Log.d(
+                "HomeGate",
+                "RELEASE timeout: isLoading=${uiState.isLoading} cwResolved=$initialCwResolved catalogs=$hasCatalogContent cwItems=${uiState.continueWatchingItems.size}"
+            )
             homeStableGateReleased = true
         }
     }
@@ -251,9 +266,9 @@ fun HomeScreen(
     val noAddonsError = stringResource(R.string.home_error_no_addons)
     val noCatalogAddonsError = stringResource(R.string.home_error_no_catalog_addons)
     val hasAnyContent = uiState.catalogRows.isNotEmpty() ||
-        (uiState.continueWatchingEnabled && uiState.continueWatchingItems.isNotEmpty()) ||
-        uiState.heroItems.isNotEmpty() ||
-        hasCollectionContent
+            (uiState.continueWatchingEnabled && uiState.continueWatchingItems.isNotEmpty()) ||
+            uiState.heroItems.isNotEmpty() ||
+            hasCollectionContent
     val showStartupLoader = when {
         !uiState.layoutPreferencesReady -> true
         uiState.isLoading && !hasAnyContent -> true
@@ -382,10 +397,10 @@ fun HomeScreen(
                             EnterTransition.None
                         } else {
                             fadeIn(animationSpec = tween(320)) +
-                                slideInVertically(
-                                    initialOffsetY = { it / 24 },
-                                    animationSpec = tween(320)
-                                )
+                                    slideInVertically(
+                                        initialOffsetY = { it / 24 },
+                                        animationSpec = tween(320)
+                                    )
                         }
                     ) {
                         when (uiState.homeLayout) {
@@ -483,6 +498,8 @@ fun HomeScreen(
             uiState = uiState,
             onCatalogSelected = viewModel::selectHomeCatalogSource,
             onStreamSelected = viewModel::selectHomeStreamSource,
+            onCatalogRepositoryFilterSelected = viewModel::selectHomeCatalogRepositoryFilter,
+            onStreamRepositoryFilterSelected = viewModel::selectHomeStreamRepositoryFilter,
             modifier = Modifier.align(Alignment.TopEnd).padding(24.dp)
         )
     }
@@ -493,8 +510,8 @@ fun HomeScreen(
         val statusKey = homeItemStatusKey(item.id, item.apiType)
         val isMovie = item.apiType.equals("movie", ignoreCase = true)
         val isSeries = item.apiType.equals("series", ignoreCase = true) ||
-            item.apiType.equals("tv", ignoreCase = true) ||
-            item.apiType.equals("anime", ignoreCase = true)
+                item.apiType.equals("tv", ignoreCase = true) ||
+                item.apiType.equals("anime", ignoreCase = true)
         HomePosterOptionsDialog(
             title = item.name,
             isInLibrary = uiState.posterLibraryMembership[statusKey] == true,
@@ -568,27 +585,289 @@ private fun HomeSourceMenus(
     uiState: HomeUiState,
     onCatalogSelected: (String) -> Unit,
     onStreamSelected: (String) -> Unit,
+    onCatalogRepositoryFilterSelected: (String) -> Unit,
+    onStreamRepositoryFilterSelected: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var catalogExpanded by remember { mutableStateOf(false) }
     var streamExpanded by remember { mutableStateOf(false) }
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        HomeSourceDropdownPicker(
-            title = stringResource(R.string.home_catalog_source),
-            selectedId = uiState.selectedCatalogSourceId,
-            expanded = catalogExpanded,
-            options = uiState.catalogSources,
-            onExpandedChange = { catalogExpanded = it },
-            onSelect = { source -> onCatalogSelected(source.id); catalogExpanded = false }
+    var hasTopBarFocus by remember { mutableStateOf(false) }
+    val topBarAlpha by animateFloatAsState(
+        targetValue = if (hasTopBarFocus) 1f else 0.8f,
+        animationSpec = tween(150),
+        label = "homeSourceMenusAlpha"
+    )
+    var catalogFocusRequest by remember { mutableStateOf(0) }
+    var streamFocusRequest by remember { mutableStateOf(0) }
+    val catalogFocusRequester = remember { FocusRequester() }
+    val streamFocusRequester = remember { FocusRequester() }
+    val streamSelectionResolved =
+        uiState.selectedStreamRepositoryFilterId != null &&
+            uiState.selectedStreamSourceId != HOME_ALL_STREAM_SOURCES_ID
+    val hideStreamControls =
+        uiState.selectedCatalogRepositoryFilterId != HOME_SERVER_CATALOGS_FILTER_ID &&
+            uiState.selectedCatalogSourceId != null &&
+            streamSelectionResolved
+
+    LaunchedEffect(catalogFocusRequest) {
+        if (catalogFocusRequest > 0) {
+            delay(80)
+            runCatching { catalogFocusRequester.requestFocus() }
+        }
+    }
+    LaunchedEffect(streamFocusRequest) {
+        if (streamFocusRequest > 0) {
+            delay(80)
+            runCatching { streamFocusRequester.requestFocus() }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .onFocusChanged { hasTopBarFocus = it.hasFocus || it.isFocused }
+            .alpha(topBarAlpha)
+            .background(NuvioTheme.colors.BackgroundCard, RoundedCornerShape(18.dp))
+            .border(
+                width = NuvioTheme.spacing.hairline,
+                color = NuvioTheme.colors.Border,
+                shape = RoundedCornerShape(18.dp)
+            )
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            HomeRepositoryFilterPicker(
+                repositories = uiState.catalogRepositoryFilters,
+                selectedRepositoryId = uiState.selectedCatalogRepositoryFilterId,
+                catalogMode = true,
+                onSelect = { repositoryId ->
+                    onCatalogRepositoryFilterSelected(repositoryId ?: HOME_SERVER_CATALOGS_FILTER_ID)
+                    catalogFocusRequest++
+                }
+            )
+            HomeSourceDropdownPicker(
+                title = stringResource(R.string.home_catalog_source),
+                emptyLabel = stringResource(R.string.home_catalog_select),
+                selectedId = uiState.selectedCatalogSourceId,
+                expanded = catalogExpanded,
+                allOptions = uiState.catalogSources,
+                options = uiState.catalogSources.filterByCatalogRepository(uiState.selectedCatalogRepositoryFilterId),
+                focusRequester = catalogFocusRequester,
+                onExpandedChange = { catalogExpanded = it },
+                onSelect = { source -> onCatalogSelected(source.id); catalogExpanded = false }
+            )
+            if (!hideStreamControls) {
+                HomeRepositoryFilterPicker(
+                    repositories = uiState.streamRepositoryFilters,
+                    selectedRepositoryId = uiState.selectedStreamRepositoryFilterId,
+                    catalogMode = false,
+                    onSelect = { repositoryId ->
+                        onStreamRepositoryFilterSelected(repositoryId)
+                        streamFocusRequest++
+                    }
+                )
+                HomeSourceDropdownPicker(
+                    title = stringResource(R.string.home_stream_source),
+                    emptyLabel = stringResource(R.string.home_stream_source),
+                    selectedId = uiState.selectedStreamSourceId,
+                    expanded = streamExpanded,
+                    allOptions = uiState.streamSources,
+                    options = uiState.streamSources.filterByRepository(uiState.selectedStreamRepositoryFilterId),
+                    focusRequester = streamFocusRequester,
+                    onExpandedChange = { streamExpanded = it },
+                    onSelect = { source -> onStreamSelected(source.id); streamExpanded = false }
+                )
+            }
+        }
+    }
+}
+
+private fun List<HomeMenuSource>.filterByRepository(repositoryId: String?): List<HomeMenuSource> =
+    if (repositoryId == null) this else filter { it.repositoryId == repositoryId }
+
+private fun List<HomeMenuSource>.filterByCatalogRepository(repositoryId: String): List<HomeMenuSource> =
+    if (repositoryId == HOME_SERVER_CATALOGS_FILTER_ID) filter { it.repositoryId == null }
+    else filter { it.repositoryId == repositoryId }
+
+@Composable
+@OptIn(ExperimentalTvMaterial3Api::class)
+private fun HomeRepositoryFilterPicker(
+    repositories: List<HomeRepositoryFilter>,
+    selectedRepositoryId: String?,
+    catalogMode: Boolean,
+    onSelect: (String?) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    Card(
+        onClick = { showDialog = true },
+        modifier = Modifier
+            .width(48.dp)
+            .height(HOME_SOURCE_CONTROL_HEIGHT),
+        shape = CardDefaults.shape(shape = RoundedCornerShape(14.dp)),
+        colors = CardDefaults.colors(
+            containerColor = NuvioTheme.colors.BackgroundCard,
+            focusedContainerColor = NuvioTheme.colors.FocusBackground
+        ),
+        border = CardDefaults.border(
+            border = Border(
+                border = BorderStroke(NuvioTheme.spacing.hairline, NuvioTheme.colors.Border),
+                shape = RoundedCornerShape(14.dp)
+            ),
+            focusedBorder = Border(
+                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                shape = RoundedCornerShape(14.dp)
+            )
+        ),
+        scale = CardDefaults.scale(focusedScale = 1f, pressedScale = 1f)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = stringResource(R.string.home_repository_filter_content_description),
+                modifier = Modifier.size(30.dp),
+                tint = NuvioTheme.colors.TextPrimary
+            )
+        }
+    }
+
+    if (showDialog) {
+        HomeRepositoryFilterDialog(
+            repositories = repositories,
+            selectedRepositoryId = selectedRepositoryId,
+            catalogMode = catalogMode,
+            onSelect = {
+                onSelect(it)
+                showDialog = false
+            },
+            onDismiss = { showDialog = false }
         )
-        HomeSourceDropdownPicker(
-            title = stringResource(R.string.home_stream_source),
-            selectedId = uiState.selectedStreamSourceId,
-            expanded = streamExpanded,
-            options = uiState.streamSources,
-            onExpandedChange = { streamExpanded = it },
-            onSelect = { source -> onStreamSelected(source.id); streamExpanded = false }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalTvMaterial3Api::class)
+private fun HomeRepositoryFilterDialog(
+    repositories: List<HomeRepositoryFilter>,
+    selectedRepositoryId: String?,
+    catalogMode: Boolean,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val defaultSelectionId = if (catalogMode) HOME_SERVER_CATALOGS_FILTER_ID else null
+    val initialFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(100)
+        initialFocusRequester.requestFocus()
+    }
+
+    NuvioDialog(
+        onDismiss = onDismiss,
+        title = stringResource(
+            if (catalogMode) R.string.home_catalog_selection_title else R.string.home_stream_selection_title
+        ),
+        width = 460.dp,
+        suppressFirstKeyUp = false,
+        contentSpacing = NuvioTheme.spacing.sm
+    ) {
+        val defaultSelected = selectedRepositoryId == defaultSelectionId
+        HomeRepositoryFilterDialogOption(
+            name = stringResource(
+                if (catalogMode) R.string.home_server_catalogs else R.string.stream_filter_all
+            ),
+            description = null,
+            selected = defaultSelected,
+            onClick = { onSelect(defaultSelectionId) },
+            modifier = if (defaultSelected) Modifier.focusRequester(initialFocusRequester) else Modifier
         )
+        if (catalogMode) {
+            Text(
+                text = stringResource(R.string.home_plugin_catalogs),
+                modifier = Modifier.padding(top = NuvioTheme.spacing.xs),
+                style = MaterialTheme.typography.labelMedium,
+                color = NuvioTheme.colors.TextTertiary
+            )
+        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 300.dp),
+            verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)
+        ) {
+            items(repositories, key = { it.id }) { repository ->
+                val selected = repository.id == selectedRepositoryId
+                HomeRepositoryFilterDialogOption(
+                    name = repository.name,
+                    description = repository.description,
+                    selected = selected,
+                    onClick = { onSelect(repository.id) },
+                    modifier = if (selected) Modifier.focusRequester(initialFocusRequester) else Modifier
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalTvMaterial3Api::class)
+private fun HomeRepositoryFilterDialogOption(
+    name: String,
+    description: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.colors(
+            containerColor = if (selected) NuvioTheme.colors.FocusBackground else NuvioTheme.colors.BackgroundCard,
+            focusedContainerColor = NuvioTheme.colors.FocusBackground
+        ),
+        shape = CardDefaults.shape(RoundedCornerShape(10.dp)),
+        scale = CardDefaults.scale(focusedScale = 1f, pressedScale = 1f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(NuvioTheme.spacing.lg),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
+            ) {
+                Text(
+                    text = name,
+                    color = if (selected) NuvioTheme.colors.Primary else NuvioTheme.colors.TextPrimary,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!description.isNullOrBlank()) {
+                    Text(
+                        text = description,
+                        color = NuvioTheme.colors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = stringResource(R.string.cd_selected),
+                    tint = NuvioTheme.colors.Primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
     }
 }
 
@@ -596,23 +875,31 @@ private fun HomeSourceMenus(
 @OptIn(ExperimentalTvMaterial3Api::class)
 private fun HomeSourceDropdownPicker(
     title: String,
+    emptyLabel: String,
     selectedId: String?,
     expanded: Boolean,
+    allOptions: List<HomeMenuSource>,
     options: List<HomeMenuSource>,
+    focusRequester: FocusRequester,
     onExpandedChange: (Boolean) -> Unit,
     onSelect: (HomeMenuSource) -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
     var anchorSize by remember { mutableStateOf(IntSize.Zero) }
     var focusedOptionId by remember(expanded) { mutableStateOf(if (expanded) selectedId else null) }
-    val selectedOption = options.firstOrNull { it.id == selectedId }
-    val selectedLabel = selectedOption?.localizedName() ?: title
+    val selectedOption = allOptions.firstOrNull { it.id == selectedId }
+    val selectedLabel = selectedOption?.localizedName() ?: emptyLabel
 
-    Box(modifier = Modifier.width(220.dp)) {
+    Box(
+        modifier = Modifier
+            .width(220.dp)
+            .height(HOME_SOURCE_CONTROL_HEIGHT)
+    ) {
         Card(
             onClick = { onExpandedChange(!expanded) },
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
+                .focusRequester(focusRequester)
                 .onSizeChanged { anchorSize = it }
                 .onFocusChanged { isFocused = it.isFocused },
             shape = CardDefaults.shape(shape = RoundedCornerShape(14.dp)),
@@ -633,7 +920,7 @@ private fun HomeSourceDropdownPicker(
             scale = CardDefaults.scale(focusedScale = 1.0f, pressedScale = 1.0f)
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
             ) {
                 Text(title, style = MaterialTheme.typography.labelSmall, color = NuvioTheme.colors.TextTertiary)
@@ -651,7 +938,10 @@ private fun HomeSourceDropdownPicker(
                     )
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (expanded) stringResource(R.string.cd_collapse, title) else stringResource(R.string.cd_expand, title),
+                        contentDescription = if (expanded) stringResource(
+                            R.string.cd_collapse,
+                            title
+                        ) else stringResource(R.string.cd_expand, title),
                         modifier = Modifier.size(20.dp),
                         tint = if (isFocused) NuvioTheme.colors.FocusRing else NuvioTheme.colors.TextSecondary
                     )
@@ -674,7 +964,8 @@ private fun HomeSourceDropdownPicker(
             options.forEach { option ->
                 val isSelected = option.id == selectedId
                 val isOptionFocused = option.id == focusedOptionId
-                val itemTextColor = if (isOptionFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary
+                val itemTextColor =
+                    if (isOptionFocused) NuvioTheme.colors.OnSecondary else NuvioTheme.colors.TextPrimary
                 val itemBackgroundColor = when {
                     isOptionFocused -> NuvioTheme.colors.Secondary
                     isSelected -> NuvioTheme.colors.FocusBackground
@@ -689,10 +980,18 @@ private fun HomeSourceDropdownPicker(
                             else if (focusedOptionId == option.id) focusedOptionId = null
                         },
                     text = {
-                        Text(option.localizedName(), color = itemTextColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            option.localizedName(),
+                            color = itemTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     },
                     onClick = { onSelect(option) },
-                    colors = MenuDefaults.itemColors(textColor = itemTextColor, disabledTextColor = NuvioTheme.colors.TextDisabled)
+                    colors = MenuDefaults.itemColors(
+                        textColor = itemTextColor,
+                        disabledTextColor = NuvioTheme.colors.TextDisabled
+                    )
                 )
             }
         }
@@ -1021,7 +1320,8 @@ private fun HomeLibraryListPickerDialog(
         ) {
             items(tabs, key = { it.key }) { tab ->
                 val selected = membership[tab.key] == true
-                val titleText = if (selected) "\u2713 ${tab.localizedMembershipTitle()}" else tab.localizedMembershipTitle()
+                val titleText =
+                    if (selected) "\u2713 ${tab.localizedMembershipTitle()}" else tab.localizedMembershipTitle()
                 Button(
                     onClick = { onToggle(tab.key) },
                     enabled = !isPending,
