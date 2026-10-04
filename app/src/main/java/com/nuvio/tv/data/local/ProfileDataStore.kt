@@ -66,7 +66,7 @@ class ProfileDataStore @Inject constructor(
     }
 
     val confirmExitEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
-        prefs[confirmExitEnabledKey] ?: false
+        prefs[confirmExitEnabledKey] ?: true
     }
 
     val startupSplashEnabled: Flow<Boolean> = dataStore.data.map { prefs ->
