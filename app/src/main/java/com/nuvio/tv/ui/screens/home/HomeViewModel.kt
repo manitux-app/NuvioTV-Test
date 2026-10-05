@@ -38,6 +38,7 @@ import com.nuvio.tv.domain.model.PluginCatalogDescriptor
 import com.nuvio.tv.domain.model.PluginRepository
 import com.nuvio.tv.domain.model.PluginSourceRef
 import com.nuvio.tv.domain.model.PluginContentRegistry
+import com.nuvio.tv.domain.model.HomeStreamSourceSelection
 import com.nuvio.tv.core.plugin.cloudstream.ExternalCatalogRequest
 import com.nuvio.tv.domain.model.hasNextPageAfter
 import com.nuvio.tv.domain.model.RepositoryType
@@ -567,7 +568,9 @@ class HomeViewModel @Inject constructor(
         else filter { it.repositoryId == repositoryId }
 
     private fun List<HomeMenuSource>.filterByRepository(repositoryId: String?): List<HomeMenuSource> =
-        if (repositoryId == null) this else filter { it.repositoryId == repositoryId }
+        if (repositoryId == null) this else filter { source ->
+            source.id == HOME_ALL_STREAM_SOURCES_ID || source.repositoryId == repositoryId
+        }
 
     fun selectHomeCatalogRepositoryFilter(id: String) {
         val catalogSources = _uiState.value.catalogSources.filterByCatalogRepository(id)
@@ -680,7 +683,16 @@ class HomeViewModel @Inject constructor(
             ?: selectedId.removePrefix("plugin:").takeIf { selectedId.startsWith("plugin:") }
             ?.let { scraperId -> pluginScrapersCache.firstOrNull { it.id == scraperId } }
             ?.let { scraper -> PluginSourceRef(RepositoryType.NUVIO_JS, scraper.repositoryId, scraper.id) }
-        PluginContentRegistry.selectStreamSource(itemId, source)
+        val repositoryId = _uiState.value.selectedStreamRepositoryFilterId
+        PluginContentRegistry.selectStreamSource(
+            itemId,
+            HomeStreamSourceSelection(
+                source = source,
+                repositoryId = repositoryId,
+                // "All" with no repository filter preserves legacy all-source playback.
+                restrictAddonSources = source != null || repositoryId != null
+            )
+        )
     }
 
     /** Loads declared JS plugin catalogs as independent shelves, like server catalogs. */

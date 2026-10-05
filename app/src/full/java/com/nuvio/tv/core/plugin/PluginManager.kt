@@ -781,12 +781,17 @@ class PluginManager @Inject constructor(
         season: Int? = null,
         episode: Int? = null,
         scraperId: String? = null,
+        repositoryId: String? = null,
         contentUrl: String? = null,
         contentUrlScraperId: String? = null,
         contentSource: PluginSourceRef? = null
     ): Flow<Pair<ScraperInfo, List<LocalScraperResult>>> = channelFlow {
         val enabledList = enabledStreamScrapers.first()
-            .filter { it.supportsType(mediaType) && (scraperId == null || it.id == scraperId) }
+            .filter { scraper ->
+                scraper.supportsType(mediaType) &&
+                    (scraperId == null || scraper.id == scraperId) &&
+                    (repositoryId == null || scraper.repositoryId == repositoryId)
+            }
         
         if (enabledList.isEmpty() || !dataStore.pluginsEnabled.first()) {
             return@channelFlow

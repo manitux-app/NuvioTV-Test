@@ -684,7 +684,9 @@ private fun HomeSourceMenus(
 }
 
 private fun List<HomeMenuSource>.filterByRepository(repositoryId: String?): List<HomeMenuSource> =
-    if (repositoryId == null) this else filter { it.repositoryId == repositoryId }
+    if (repositoryId == null) this else filter { source ->
+        source.id == HOME_ALL_STREAM_SOURCES_ID || source.repositoryId == repositoryId
+    }
 
 private fun List<HomeMenuSource>.filterByCatalogRepository(repositoryId: String): List<HomeMenuSource> =
     if (repositoryId == HOME_SERVER_CATALOGS_FILTER_ID) filter { it.repositoryId == null }

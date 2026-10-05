@@ -92,10 +92,16 @@ class StreamRepositoryImpl @Inject constructor(
         episode: Int?,
         forceRefresh: Boolean,
         pluginContent: PluginContentRef?,
-        selectedPluginScraperId: String?
+        selectedPluginScraperId: String?,
+        selectedPluginRepositoryId: String?,
+        restrictAddonSources: Boolean
     ): Flow<NetworkResult<List<AddonStreams>>> = flow {
-        // null represents the Home menu's "All" choice. It must remain unfiltered.
-        val sourceConfiguration = captureSourceConfiguration(selectedPluginScraperId)
+        // "All" with no repository filter remains unfiltered.
+        val sourceConfiguration = captureSourceConfiguration(
+            selectedPluginScraperId,
+            selectedPluginRepositoryId,
+            restrictAddonSources
+        )
         val requestKey = StreamSearchRequestKey(
             profileId = sourceConfiguration.profileId,
             type = type.lowercase(),
@@ -129,19 +135,26 @@ class StreamRepositoryImpl @Inject constructor(
                     hasCompatiblePlugins = sourceConfiguration.pluginsEnabled &&
                         sourceConfiguration.enabledScrapers.any { scraper -> scraper.supportsType(type) },
                     pluginContent = pluginContent,
-                    selectedPluginScraperId = selectedPluginScraperId
+                    selectedPluginScraperId = selectedPluginScraperId,
+                    selectedPluginRepositoryId = selectedPluginRepositoryId,
+                    restrictAddonSources = restrictAddonSources
                 )
             }
         )
     }
 
-    private suspend fun captureSourceConfiguration(selectedPluginScraperId: String?): StreamSourceConfigurationSnapshot {
+    private suspend fun captureSourceConfiguration(
+        selectedPluginScraperId: String?,
+        selectedPluginRepositoryId: String?,
+        restrictAddonSources: Boolean
+    ): StreamSourceConfigurationSnapshot {
         while (true) {
             val profileId = profileManager.activeProfileId.value
             val addons = addonRepository.getInstalledAddons().first().enabledAddons()
             val pluginsEnabled = pluginManager.pluginsEnabled.first()
             val enabledScrapers = if (pluginsEnabled) pluginManager.enabledStreamScrapers.first().filter { scraper ->
-                selectedPluginScraperId == null || scraper.id == selectedPluginScraperId
+                (selectedPluginScraperId == null || scraper.id == selectedPluginScraperId) &&
+                    (selectedPluginRepositoryId == null || scraper.repositoryId == selectedPluginRepositoryId)
             } else emptyList()
             val groupPluginsByRepository = pluginsEnabled && pluginManager.groupStreamsByRepository.first()
             val pluginRepositories = if (groupPluginsByRepository) pluginManager.repositories.first() else emptyList()
@@ -151,7 +164,7 @@ class StreamRepositoryImpl @Inject constructor(
 
             return StreamSourceConfigurationSnapshot(
                 profileId = profileId,
-                addons = addons,
+                addons = if (restrictAddonSources) emptyList() else addons,
                 pluginsEnabled = pluginsEnabled,
                 enabledScrapers = enabledScrapers,
                 groupPluginsByRepository = groupPluginsByRepository,
@@ -171,15 +184,17 @@ class StreamRepositoryImpl @Inject constructor(
         debridSettings: DebridSettings,
         hasCompatiblePlugins: Boolean,
         pluginContent: PluginContentRef?,
-        selectedPluginScraperId: String?
+        selectedPluginScraperId: String?,
+        selectedPluginRepositoryId: String?,
+        restrictAddonSources: Boolean
     ): Flow<NetworkResult<List<AddonStreams>>> = flow {
         emit(NetworkResult.Loading)
 
         try {
-            // Filter addons that support streams for this type and id
-            // The Home source menu selects plugin providers. Addon streams remain outside
-            // this catalog-originated flow, while non-plugin playback keeps its old behavior.
-            val streamAddons = if (pluginContent != null) emptyList() else addons.filter { addon ->
+            // Server catalogs have no plugin provenance. When Home supplied an explicit
+            // plugin source or repository, do not mix their playback with server addons.
+            // Playback outside that scoped Home flow retains its original addon behavior.
+            val streamAddons = if (pluginContent != null || restrictAddonSources) emptyList() else addons.filter { addon ->
                 addon.supportsStreamResource(type, videoId)
             }
 
@@ -282,6 +297,7 @@ class StreamRepositoryImpl @Inject constructor(
                                         season = pluginSeason,
                                         episode = pluginEpisode,
                                         selectedPluginScraperId = selectedPluginScraperId,
+                                        selectedPluginRepositoryId = selectedPluginRepositoryId,
                                         contentUrl = pluginContent?.url,
                                         contentUrlScraperId = pluginContent?.source?.scraperId,
                                         contentSource = pluginContent?.source,
@@ -470,6 +486,7 @@ class StreamRepositoryImpl @Inject constructor(
         season: Int?,
         episode: Int?,
         selectedPluginScraperId: String?,
+        selectedPluginRepositoryId: String?,
         contentUrl: String?,
         contentUrlScraperId: String?,
         contentSource: com.nuvio.tv.domain.model.PluginSourceRef?,
@@ -498,6 +515,7 @@ class StreamRepositoryImpl @Inject constructor(
                 season = season,
                 episode = episode,
                 scraperId = selectedPluginScraperId,
+                repositoryId = selectedPluginRepositoryId,
                 contentUrl = contentUrl,
                 contentUrlScraperId = contentUrlScraperId,
                 contentSource = contentSource

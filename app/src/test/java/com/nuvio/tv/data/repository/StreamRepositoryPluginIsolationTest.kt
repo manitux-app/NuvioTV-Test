@@ -78,6 +78,22 @@ class StreamRepositoryPluginIsolationTest {
         coVerify(exactly = 1) { harness.api.getStreams(any()) }
     }
 
+    @Test
+    fun `selected Home plugin source does not query server addons`() = runTest {
+        val harness = newHarness(emptyList())
+
+        val results = harness.repository.getStreamsFromAllAddons(
+            type = "movie",
+            videoId = "tt1341338",
+            selectedPluginScraperId = "selected-plugin",
+            restrictAddonSources = true
+        ).toList()
+
+        assertTrue(results.last() is NetworkResult.Success)
+        assertTrue((results.last() as NetworkResult.Success).data.isEmpty())
+        coVerify(exactly = 0) { harness.api.getStreams(any()) }
+    }
+
     /**
      * The stream path must read addon display info from the installed [Addon] it was given, not
      * refetch the manifest. fetchAddon is deliberately left stubbed on the harness so this asserts

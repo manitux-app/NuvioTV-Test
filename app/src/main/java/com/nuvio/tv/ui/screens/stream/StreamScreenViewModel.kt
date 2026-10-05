@@ -136,8 +136,9 @@ class StreamScreenViewModel @Inject constructor(
     private val contentName: String? = savedStateHandle.getOptionalString("contentName")
     private val pluginContentId: String? = savedStateHandle.getOptionalString("pluginContentId")
     private val pluginContent = pluginContentId?.let(PluginContentRegistry::get)
+    private val homeStreamSelection = pluginContentId?.let(PluginContentRegistry::selectedStreamSelection)
     private val selectedPluginScraperId: String? = savedStateHandle.getOptionalString("pluginStreamSourceId")
-        ?: pluginContentId?.let(PluginContentRegistry::selectedStreamSource)?.scraperId
+        ?: homeStreamSelection?.source?.scraperId
     private val contentLanguage: String? = savedStateHandle.getOptionalString("contentLanguage")
     private val playbackProfileId: Int = savedStateHandle.get<String>("profileId")?.toIntOrNull()
         ?: profileManager.activeProfileId.value
@@ -667,7 +668,9 @@ class StreamScreenViewModel @Inject constructor(
                     episode = episode,
                     forceRefresh = forceRefresh,
                     pluginContent = pluginContent,
-                    selectedPluginScraperId = selectedPluginScraperId
+                    selectedPluginScraperId = selectedPluginScraperId,
+                    selectedPluginRepositoryId = homeStreamSelection?.repositoryId,
+                    restrictAddonSources = homeStreamSelection?.restrictAddonSources == true
                 ).collect { result ->
                     when (result) {
                         is NetworkResult.Success -> {

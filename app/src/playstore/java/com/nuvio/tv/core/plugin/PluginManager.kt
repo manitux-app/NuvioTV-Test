@@ -2,6 +2,7 @@ package com.nuvio.tv.core.plugin
 
 import com.nuvio.tv.domain.model.LocalScraperResult
 import com.nuvio.tv.domain.model.PluginRepository
+import com.nuvio.tv.domain.model.PluginSourceRef
 import com.nuvio.tv.domain.model.RemotePluginInfo
 import com.nuvio.tv.domain.model.ScraperInfo
 import kotlinx.coroutines.flow.Flow
@@ -61,7 +62,12 @@ class PluginManager {
         tmdbId: String,
         mediaType: String,
         season: Int? = null,
-        episode: Int? = null
+        episode: Int? = null,
+        scraperId: String? = null,
+        repositoryId: String? = null,
+        contentUrl: String? = null,
+        contentUrlScraperId: String? = null,
+        contentSource: PluginSourceRef? = null
     ): Flow<Pair<ScraperInfo, List<LocalScraperResult>>> = emptyFlow()
 
     suspend fun executeScraper(

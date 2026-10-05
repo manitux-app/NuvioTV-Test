@@ -26,7 +26,9 @@ interface StreamRepository {
         episode: Int? = null,
         forceRefresh: Boolean = false,
         pluginContent: PluginContentRef? = null,
-        selectedPluginScraperId: String? = null
+        selectedPluginScraperId: String? = null,
+        selectedPluginRepositoryId: String? = null,
+        restrictAddonSources: Boolean = false
     ): Flow<NetworkResult<List<AddonStreams>>>
 
     /**

@@ -9,8 +9,8 @@ import java.util.concurrent.ConcurrentHashMap
 object PluginContentRegistry {
     private const val MAX_ITEMS = 512
     private val entries = ConcurrentHashMap<String, PluginCatalogItem>()
-    private val streamSelections = ConcurrentHashMap<String, PluginSourceRef>()
-    @Volatile private var activeStreamSelection: PluginSourceRef? = null
+    private val streamSelections = ConcurrentHashMap<String, HomeStreamSourceSelection>()
+    @Volatile private var activeStreamSelection: HomeStreamSourceSelection? = null
 
     fun put(items: Iterable<PluginCatalogItem>) {
         items.forEach { item -> entries[item.content.stableId()] = item }
@@ -25,12 +25,25 @@ object PluginContentRegistry {
     fun getItem(stableId: String): PluginCatalogItem? = entries[stableId]
 
     /** Captures the Home source choice at navigation time, not catalog-load time. */
-    fun selectStreamSource(stableId: String, source: PluginSourceRef?) {
-        activeStreamSelection = source
-        if (source == null) streamSelections.remove(stableId) else streamSelections[stableId] = source
+    fun selectStreamSource(stableId: String, selection: HomeStreamSourceSelection) {
+        activeStreamSelection = selection
+        streamSelections[stableId] = selection
     }
 
     /** Falls back to the current Home selection if this content was evicted before navigation. */
     fun selectedStreamSource(stableId: String): PluginSourceRef? =
+        selectedStreamSelection(stableId)?.source
+
+    fun selectedStreamSelection(stableId: String): HomeStreamSourceSelection? =
         streamSelections[stableId] ?: activeStreamSelection
 }
+
+/**
+ * The source restriction chosen on Home. Server-based catalog items have no plugin
+ * provenance, so this carries the independent source-menu choice into playback.
+ */
+data class HomeStreamSourceSelection(
+    val source: PluginSourceRef? = null,
+    val repositoryId: String? = null,
+    val restrictAddonSources: Boolean = false
+)
