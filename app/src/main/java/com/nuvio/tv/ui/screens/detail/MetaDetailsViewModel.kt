@@ -782,7 +782,7 @@ class MetaDetailsViewModel @Inject constructor(
 
                             if (preferredMeta != null) {
                                 applyMetaWithEnrichment(preferredMeta)
-                            } else if (tryApplyTmdbFallbackMeta(metaLookupId)) {
+                            } else if (tryApplyTmdbFallbackMeta(metaLookupId) || tryApplyPluginCatalogFallbackMeta()) {
                                 Unit
                             } else {
                                 val errorMsg = buildMetaLoadErrorMessage(result.message, metaLookupId)
@@ -814,7 +814,7 @@ class MetaDetailsViewModel @Inject constructor(
                                 applyMetaWithEnrichment(result.data)
                             }
                             is NetworkResult.Error -> {
-                                if (!tryApplyTmdbFallbackMeta(metaLookupId)) {
+                                if (!tryApplyTmdbFallbackMeta(metaLookupId) && !tryApplyPluginCatalogFallbackMeta()) {
                                     val errorMsg = buildMetaLoadErrorMessage(result.message, metaLookupId)
                                     _uiState.update { it.copy(isLoading = false, error = errorMsg) }
                                 }
@@ -883,6 +883,42 @@ class MetaDetailsViewModel @Inject constructor(
             // settings.useTrailers; without the same gate here, the fallback
             // path would smuggle TMDB trailers in unconditionally.
             trailers = if (settings.useTrailers) enrichment.trailers else emptyList()
+        )
+        applyMetaWithEnrichment(meta)
+        return true
+    }
+
+    /**
+     * A plugin catalog ID is opaque to meta addons, but remains valid for the
+     * originating plugin's getStreams call. Keep the catalog card usable when
+     * no external metadata provider can identify it.
+     */
+    private suspend fun tryApplyPluginCatalogFallbackMeta(): Boolean {
+        val item = pluginCatalogItem ?: return false
+        val content = pluginContentRef ?: return false
+        val meta = Meta(
+            id = itemId,
+            type = content.type,
+            rawType = content.type.toApiString(),
+            name = item.name,
+            poster = item.poster,
+            posterShape = com.nuvio.tv.domain.model.PosterShape.POSTER,
+            background = item.background,
+            logo = item.logo,
+            description = item.description,
+            releaseInfo = item.year?.toString(),
+            imdbRating = null,
+            genres = item.genres,
+            runtime = null,
+            director = emptyList(),
+            cast = emptyList(),
+            videos = emptyList(),
+            country = null,
+            awards = null,
+            language = null,
+            links = emptyList(),
+            imdbId = content.externalIds.imdbId,
+            pluginContentRef = content
         )
         applyMetaWithEnrichment(meta)
         return true
