@@ -29,6 +29,11 @@ import com.nuvio.tv.domain.model.PosterShape
 import com.nuvio.tv.domain.model.enabledAddons
 import com.nuvio.tv.domain.model.PLACEHOLDER_IMAGE_URL
 import com.nuvio.tv.domain.repository.CatalogRepository
+import com.nuvio.tv.core.plugin.PluginManager
+import com.nuvio.tv.domain.model.HomeStreamSourceSelection
+import com.nuvio.tv.domain.model.PluginContentRegistry
+import com.nuvio.tv.domain.model.RepositoryType
+import com.nuvio.tv.ui.screens.home.HomeCatalogSearchScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -57,8 +62,29 @@ class SearchViewModel @Inject constructor(
     private val watchProgressRepository: com.nuvio.tv.domain.repository.WatchProgressRepository,
     private val watchedSeriesStateHolder: com.nuvio.tv.data.local.WatchedSeriesStateHolder,
     val posterOptions: com.nuvio.tv.ui.components.posteroptions.PosterOptionsController,
+    private val pluginManager: PluginManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val catalogSourceId = HomeCatalogSearchScope.consume()
+
+    /**
+     * Preserves the plugin that produced a search result while entering Details.
+     * Without this selection the details flow falls back to its generic TMDB/add-on
+     * stream lookup, which cannot resolve provider-local content ids.
+     */
+    fun preparePluginPlayback(itemId: String) {
+        val item = PluginContentRegistry.getItem(itemId) ?: return
+        val source = item.content.source
+        PluginContentRegistry.selectStreamSource(
+            itemId,
+            HomeStreamSourceSelection(
+                source = source,
+                repositoryId = source.repositoryId,
+                restrictAddonSources = true
+            )
+        )
+    }
 
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
@@ -352,6 +378,12 @@ class SearchViewModel @Inject constructor(
             _uiState.update { it.copy(suggestions = emptyList()) }
             return
         }
+        if (catalogSourceId?.startsWith("plugin:") == true ||
+            catalogSourceId?.startsWith("cloudstream:") == true
+        ) {
+            _uiState.update { it.copy(suggestions = emptyList()) }
+            return
+        }
 
         // Already searched, so a fetch would repeat itself and the strip is current. Leave it
         // standing: live search submits as the user types, so typing a space between words
@@ -575,6 +607,13 @@ class SearchViewModel @Inject constructor(
             }
 
             if (generation != searchGeneration || activeSearchQuery != query) return@launch
+
+            if (catalogSourceId?.startsWith("plugin:") == true ||
+                catalogSourceId?.startsWith("cloudstream:") == true
+            ) {
+                searchSelectedPluginCatalog(query, generation, catalogSourceId, rememberToHistory)
+                return@launch
+            }
 
             val searchTargets = buildSearchTargets(addons)
 
@@ -1165,13 +1204,95 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun buildSearchTargets(addons: List<Addon>): List<Pair<Addon, CatalogDescriptor>> {
-        val allSearchTargets = addons.flatMap { addon ->
+        val scopedAddons = catalogSourceId?.removePrefix("addon:")?.let { selectedAddonId ->
+            addons.filter { it.id == selectedAddonId }
+        } ?: addons
+        val allSearchTargets = scopedAddons.flatMap { addon ->
             addon.catalogs
                 .filter { catalog -> catalog.isSearchable() }
                 .map { catalog -> addon to catalog }
         }
 
         return allSearchTargets
+    }
+
+    /** Restricts search to the selected Home plugin and invokes its native search capability. */
+    private suspend fun searchSelectedPluginCatalog(
+        query: String,
+        generation: Long,
+        sourceId: String,
+        rememberToHistory: Boolean
+    ) {
+        _uiState.update { it.copy(isSearching = true, error = null, catalogRows = emptyList()) }
+        resetCatalogAccumulator()
+        val enabledScrapers = pluginManager.enabledScrapers.first()
+        val scraper = when {
+            sourceId.startsWith("plugin:") -> {
+                val scraperId = sourceId.removePrefix("plugin:")
+                enabledScrapers.firstOrNull { it.id == scraperId }
+            }
+            sourceId.startsWith("cloudstream:") -> {
+                val scopedSource = sourceId.removePrefix("cloudstream:")
+                // Scraper ids are repository-qualified ("<repo-id>:<plugin-id>") and may
+                // themselves contain colons. Match the full registered id, not a split segment.
+                enabledScrapers
+                    .asSequence()
+                    .filter { scopedSource.startsWith("${it.id}:") }
+                    .maxByOrNull { it.id.length }
+            }
+            else -> null
+        }
+        if (scraper == null || !isCurrentSearch(generation, query)) {
+            _uiState.update { it.copy(isSearching = false, error = context.getString(R.string.search_error_no_catalogs)) }
+            return
+        }
+
+        val rows = if (scraper.type == RepositoryType.NUVIO_JS) {
+            val page = pluginManager.executeSearch(scraper, query)
+            PluginContentRegistry.put(page.items)
+            page.items.groupBy { it.content.type }.map { (type, items) ->
+                CatalogRow(
+                    addonId = "plugin:${scraper.id}",
+                    addonName = scraper.name,
+                    addonBaseUrl = "",
+                    catalogId = "search:${type.toApiString()}",
+                    catalogName = scraper.name,
+                    type = type,
+                    items = items.map { it.toMetaPreview() },
+                    pluginSource = items.firstOrNull()?.content?.source
+                )
+            }
+        } else {
+            pluginManager.externalCatalogRequests(scraper)
+                .firstOrNull { request -> sourceId == "cloudstream:${request.source.scraperId}:${request.source.providerKey}" }
+                ?.let { request ->
+                    val page = pluginManager.executeExternalSearch(request.source, query)
+                    PluginContentRegistry.put(page.items)
+                    page.items.groupBy { it.content.type }.map { (type, items) ->
+                        CatalogRow(
+                            addonId = "plugin:${scraper.id}",
+                            addonName = scraper.name,
+                            addonBaseUrl = "",
+                            catalogId = "search:${request.source.providerKey}:${type.toApiString()}",
+                            catalogName = scraper.name,
+                            type = type,
+                            items = items.map { it.toMetaPreview() },
+                            pluginSource = request.source
+                        )
+                    }
+                }.orEmpty()
+        }.filter { it.items.isNotEmpty() }
+
+        if (!isCurrentSearch(generation, query)) return
+        rows.forEach { row ->
+            val key = row.stableKey()
+            catalogOrder += key
+            catalogsMap[key] = row
+        }
+        _uiState.update { it.copy(catalogRows = rows, isSearching = false) }
+        if (rememberToHistory && rows.isNotEmpty()) {
+            searchHistoryDataStore.saveRecentSearch(query, MAX_RECENT_SEARCHES)
+        }
     }
 
     /**

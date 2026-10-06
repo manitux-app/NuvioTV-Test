@@ -872,6 +872,7 @@ fun SearchScreen(
                                 onItemClick = { id, type, addonBaseUrl ->
                                     lastFocusedRowKey = catalogKey
                                     saveSearchFocusForDetail(catalogKey)
+                                    viewModel.preparePluginPlayback(id)
                                     val clickedItem = catalogRow.items.firstOrNull { it.id == id }
                                     val backdrop = viewModel.getCachedBackdrop(id, type)
                                         ?: clickedItem?.backdropUrl
@@ -949,6 +950,7 @@ fun SearchScreen(
                 .firstOrNull { it.id == id }
                 ?: uiState.discoverResults.firstOrNull { it.id == id }
             HeroBackdropState.update(clickedItem?.backdropUrl)
+            viewModel.preparePluginPlayback(id)
             onNavigateToDetail(id, type, addonBaseUrl)
         }
     )

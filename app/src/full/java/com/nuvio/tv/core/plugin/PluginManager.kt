@@ -938,6 +938,43 @@ class PluginManager @Inject constructor(
         return PluginCatalogPage(items, root.string("nextPageToken"))
     }
 
+    /** Executes an installed plugin's optional search capability. */
+    suspend fun executeSearch(
+        scraper: ScraperInfo,
+        query: String,
+        language: String? = null
+    ): PluginCatalogPage {
+        if (scraper.type != RepositoryType.NUVIO_JS) return PluginCatalogPage(emptyList())
+        val code = dataStore.getScraperCode(scraper.id) ?: return PluginCatalogPage(emptyList())
+        val raw = withContext(pluginDispatcher) {
+            runtime.executeSearch(code, query, language, scraper.id, dataStore.getScraperSettings(scraper.id))
+        }
+        val root = com.google.gson.JsonParser.parseString(raw).takeIf { it.isJsonObject }?.asJsonObject
+            ?: return PluginCatalogPage(emptyList())
+        val source = PluginSourceRef(RepositoryType.NUVIO_JS, scraper.repositoryId, scraper.id)
+        val items = root.getAsJsonArray("items")?.mapNotNull { element ->
+            val value = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val id = value.string("id") ?: return@mapNotNull null
+            val name = decodePluginCatalogName(value.string("name") ?: return@mapNotNull null)
+            val type = ContentType.fromString(value.string("type") ?: return@mapNotNull null)
+            if (type != ContentType.MOVIE && type != ContentType.SERIES) return@mapNotNull null
+            PluginCatalogItem(
+                content = PluginContentRef(
+                    source, id, type, value.string("url"),
+                    PluginExternalIds(value.objectValue("externalIds")?.string("tmdbId"), value.objectValue("externalIds")?.string("imdbId"))
+                ),
+                name = name,
+                year = value.int("year"), poster = value.string("poster"), background = value.string("background"),
+                logo = value.string("logo"), description = value.string("description"),
+                genres = value.getAsJsonArray("genres")?.mapNotNull { it.takeIf { p -> p.isJsonPrimitive }?.asString } ?: emptyList()
+            )
+        }.orEmpty()
+        return PluginCatalogPage(items)
+    }
+
+    suspend fun executeExternalSearch(source: PluginSourceRef, query: String): PluginCatalogPage =
+        PluginCatalogPage(externalExtensionRunner.search(source, query))
+
     private fun com.google.gson.JsonObject.string(name: String): String? =
         get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString?.takeIf { it.isNotBlank() }
     private fun com.google.gson.JsonObject.int(name: String): Int? =
@@ -1204,6 +1241,7 @@ class PluginManager @Inject constructor(
                     contentLanguage = info.contentLanguage ?: emptyList(),
                     formats = info.formats,
                     supportsStreams = info.supportsStreams,
+                    supportsSearch = info.supportsSearch,
                     catalogs = info.catalogs
                 )
                 

@@ -67,6 +67,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -121,7 +122,8 @@ fun HomeScreen(
     onContinueWatchingStartFromBeginning: (ContinueWatchingItem) -> Unit = onContinueWatchingClick,
     onContinueWatchingPlayManually: (ContinueWatchingItem) -> Unit = onContinueWatchingClick,
     onNavigateToCatalogSeeAll: (String, String, String) -> Unit = { _, _, _ -> },
-    onNavigateToFolderDetail: (String, String) -> Unit = { _, _ -> }
+    onNavigateToFolderDetail: (String, String) -> Unit = { _, _ -> },
+    onNavigateToCatalogSearch: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -500,6 +502,10 @@ fun HomeScreen(
             onStreamSelected = viewModel::selectHomeStreamSource,
             onCatalogRepositoryFilterSelected = viewModel::selectHomeCatalogRepositoryFilter,
             onStreamRepositoryFilterSelected = viewModel::selectHomeStreamRepositoryFilter,
+            onCatalogSearch = {
+                uiState.selectedCatalogSourceId?.let(HomeCatalogSearchScope::open)
+                onNavigateToCatalogSearch()
+            },
             modifier = Modifier.align(Alignment.TopEnd).padding(24.dp)
         )
     }
@@ -587,6 +593,7 @@ private fun HomeSourceMenus(
     onStreamSelected: (String) -> Unit,
     onCatalogRepositoryFilterSelected: (String) -> Unit,
     onStreamRepositoryFilterSelected: (String?) -> Unit,
+    onCatalogSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var catalogExpanded by remember { mutableStateOf(false) }
@@ -657,6 +664,42 @@ private fun HomeSourceMenus(
                 onExpandedChange = { catalogExpanded = it },
                 onSelect = { source -> onCatalogSelected(source.id); catalogExpanded = false }
             )
+            Card(
+                onClick = {
+                    if (uiState.selectedCatalogSourceId != null) onCatalogSearch()
+                },
+                modifier = Modifier
+                    .width(48.dp)
+                    .height(HOME_SOURCE_CONTROL_HEIGHT),
+                shape = CardDefaults.shape(shape = RoundedCornerShape(14.dp)),
+                colors = CardDefaults.colors(
+                    containerColor = NuvioTheme.colors.BackgroundCard,
+                    focusedContainerColor = NuvioTheme.colors.FocusBackground
+                ),
+                border = CardDefaults.border(
+                    border = Border(
+                        border = BorderStroke(NuvioTheme.spacing.hairline, NuvioTheme.colors.Border),
+                        shape = RoundedCornerShape(14.dp)
+                    ),
+                    focusedBorder = Border(
+                        border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                ),
+                scale = CardDefaults.scale(focusedScale = 1f, pressedScale = 1f)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = stringResource(R.string.search_placeholder),
+                        modifier = Modifier.size(30.dp),
+                        tint = NuvioTheme.colors.TextPrimary
+                    )
+                }
+            }
             if (!hideStreamControls) {
                 HomeRepositoryFilterPicker(
                     repositories = uiState.streamRepositoryFilters,

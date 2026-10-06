@@ -254,6 +254,9 @@ private fun PlaybackNavHost(
                 },
                 onNavigateToFolderDetail = { collectionId, folderId ->
                     navController.navigate(Screen.FolderDetail.createRoute(collectionId, folderId))
+                },
+                onNavigateToCatalogSearch = {
+                    navController.navigate(Screen.Search.route)
                 }
             )
         }

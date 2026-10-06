@@ -28,6 +28,7 @@ import com.nuvio.tv.core.tmdb.TmdbService
 import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.LocalScraperResult
 import com.nuvio.tv.domain.model.PluginCatalogPage
+import com.nuvio.tv.domain.model.PluginCatalogItem
 import com.nuvio.tv.domain.model.PluginSourceRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -80,6 +81,20 @@ class ExternalExtensionRunner @Inject constructor(
                 rows = response.items.mapNotNull { it.toCatalogRow(request.source) },
                 hasNext = response.hasNext
             )
+        }
+
+    /** Exposes Cloudstream MainAPI.search() as Nuvio's plugin-search capability. */
+    suspend fun search(source: PluginSourceRef, query: String): List<PluginCatalogItem> =
+        withContext(Dispatchers.IO) {
+            val api = extensionLoader.getApi(source.scraperId, source.providerKey ?: return@withContext emptyList())
+                ?: return@withContext emptyList()
+            Log.d(TAG, "Searching ${api.name} for \"$query\"")
+            val items = runCatching { api.search(query, 1)?.items.orEmpty() }
+                .onFailure { error -> Log.w(TAG, "Search failed for ${api.name}: ${error.message}") }
+                .getOrDefault(emptyList())
+                .mapNotNull { item -> item.toCatalogItem(source) }
+            Log.d(TAG, "Search ${api.name} returned ${items.size} items")
+            items
         }
 
     /** Uses the selected catalogue provider directly: load(url) then loadLinks(data). */

@@ -66,6 +66,8 @@ data class ScraperManifestInfo(
     val limited: Boolean? = null,
     /** Defaults to true so existing getStreams-only manifests remain compatible. */
     val supportsStreams: Boolean = true,
+    /** Declares the optional search(args) entry point. */
+    val supportsSearch: Boolean = false,
     val catalogs: List<PluginCatalogManifestInfo> = emptyList()
 )
 
@@ -96,6 +98,7 @@ data class ScraperInfo(
     val formats: List<String>?,
     val type: RepositoryType = RepositoryType.NUVIO_JS,
     val supportsStreams: Boolean = true,
+    val supportsSearch: Boolean = false,
     val catalogs: List<PluginCatalogManifestInfo> = emptyList()
 ) {
     fun supportsType(type: String): Boolean {

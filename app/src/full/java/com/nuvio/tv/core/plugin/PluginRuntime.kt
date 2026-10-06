@@ -246,6 +246,21 @@ class PluginRuntime @Inject constructor() {
         })();
     """.trimIndent()
 
+    private fun getSearchCallCode(): String = """
+        (async function() {
+            try {
+                var search = module.exports.search || globalThis.search;
+                if (!search) { __capture_result(JSON.stringify({ items: [] })); return; }
+                var args = JSON.parse(__get_call_args());
+                var result = await search(args);
+                __capture_result(JSON.stringify(result || { items: [] }));
+            } catch (e) {
+                console.error("search error:", e.message || e);
+                __capture_result(JSON.stringify({ items: [] }));
+            }
+        })();
+    """.trimIndent()
+
     /** Runs the optional v1 getCatalog entry point and returns its JSON response unchanged. */
     suspend fun executeCatalog(
         code: String,
@@ -260,6 +275,21 @@ class PluginRuntime @Inject constructor() {
             code, scraperId, scraperSettings, getCatalogCallCode(), mapOf(
                 "catalogId" to catalogId, "type" to type, "pageToken" to pageToken, "language" to language
             ), isCatalogExecution = true
+        )
+    }
+
+    /** Runs the optional v1 search entry point with { query, language }. */
+    suspend fun executeSearch(
+        code: String,
+        query: String,
+        language: String?,
+        scraperId: String,
+        scraperSettings: Map<String, Any> = emptyMap()
+    ): String = withTimeout(PLUGIN_TIMEOUT_MS) {
+        executePluginInternal(
+            code, scraperId, scraperSettings, getSearchCallCode(),
+            mapOf("query" to query, "language" to language),
+            isCatalogExecution = true
         )
     }
 
