@@ -724,7 +724,8 @@ internal fun PlayerRuntimeController.saveWatchProgressInternal(position: Long, d
         position = position,
         duration = duration,
         lastWatched = System.currentTimeMillis(),
-        progressPercent = fallbackPercent
+        progressPercent = fallbackPercent,
+        pluginPlaybackSource = navigationArgs.pluginPlaybackSource
     )
 
     scope.launch(kotlinx.coroutines.NonCancellable) {

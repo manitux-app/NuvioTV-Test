@@ -1,6 +1,7 @@
 package com.nuvio.tv.ui.screens.player
 
 import androidx.lifecycle.SavedStateHandle
+import com.nuvio.tv.domain.model.PluginPlaybackSource
 import org.json.JSONArray
 import java.net.URLDecoder
 
@@ -32,6 +33,7 @@ internal data class PlayerNavigationArgs(
     val fileIdx: Int?,
     val sourcesJson: String?,
     val contentLanguage: String?,
+    val pluginPlaybackSource: PluginPlaybackSource?,
     val cloudSessionToken: String?,
     val rememberedAudioLanguage: String?,
     val rememberedAudioName: String?,
@@ -92,6 +94,7 @@ internal data class PlayerNavigationArgs(
                 fileIdx = savedStateHandle.get<String>("fileIdx")?.toIntOrNull(),
                 sourcesJson = decodedOrNull("sources"),
                 contentLanguage = decodedOrNull("contentLanguage"),
+                pluginPlaybackSource = PluginPlaybackSource.decode(decodedOrNull("pluginPlaybackSource")),
                 cloudSessionToken = decodedOrNull("cloudSessionToken"),
                 rememberedAudioLanguage = decodedOrNull("rememberedAudioLanguage"),
                 rememberedAudioName = decodedOrNull("rememberedAudioName"),

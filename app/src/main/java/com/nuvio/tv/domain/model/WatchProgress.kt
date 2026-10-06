@@ -1,6 +1,44 @@
 package com.nuvio.tv.domain.model
 
 import androidx.compose.runtime.Immutable
+import org.json.JSONObject
+
+/** Persistent plugin provenance for resuming a catalog-plugin item after process recreation. */
+data class PluginPlaybackSource(
+    val kind: String,
+    val repositoryId: String,
+    val scraperId: String,
+    val providerKey: String? = null,
+    val contentId: String,
+    val contentUrl: String? = null
+) {
+    fun encode(): String = JSONObject().apply {
+        put("kind", kind)
+        put("repositoryId", repositoryId)
+        put("scraperId", scraperId)
+        put("providerKey", providerKey)
+        put("contentId", contentId)
+        put("contentUrl", contentUrl)
+    }.toString()
+
+    companion object {
+        fun decode(value: String?): PluginPlaybackSource? = runCatching {
+            val json = JSONObject(value ?: return null)
+            PluginPlaybackSource(
+                kind = json.getString("kind"),
+                repositoryId = json.getString("repositoryId"),
+                scraperId = json.getString("scraperId"),
+                providerKey = json.takeUnless { it.isNull("providerKey") }
+                    ?.optString("providerKey")
+                    ?.takeIf { it.isNotBlank() },
+                contentId = json.getString("contentId"),
+                contentUrl = json.takeUnless { it.isNull("contentUrl") }
+                    ?.optString("contentUrl")
+                    ?.takeIf { it.isNotBlank() }
+            )
+        }.getOrNull()
+    }
+}
 
 /**
  * Represents the watch progress for a content item (movie or episode).
@@ -32,7 +70,8 @@ data class WatchProgress(
     override val trackingProviderItemId: String? = null,
     override val trackingSourceUrl: String? = null,
     val completionThresholdOverride: Float? = null,
-    val excludedNextUpSeasons: Set<Int> = emptySet()
+    val excludedNextUpSeasons: Set<Int> = emptySet(),
+    val pluginPlaybackSource: PluginPlaybackSource? = null
 ) : TrackingAttributedItem {
     override val trackingContentId: String
         get() = contentId

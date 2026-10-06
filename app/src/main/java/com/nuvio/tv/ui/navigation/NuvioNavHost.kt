@@ -182,6 +182,7 @@ private fun PlaybackNavHost(
                         contentId = item.progress.contentId,
                         contentName = item.progress.name,
                         runtime = null,
+                        pluginPlaybackSource = item.progress.pluginPlaybackSource,
                         manualSelection = manualSelection,
                         returnToDetailOnBack = item.progress.contentType.equals("series", ignoreCase = true),
                         returnToHomeOnBack = true,
@@ -515,6 +516,11 @@ private fun PlaybackNavHost(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("pluginPlaybackSource") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
                 navArgument("manualSelection") {
                     type = NavType.StringType
                     nullable = true
@@ -634,6 +640,7 @@ private fun PlaybackNavHost(
                                 fileIdx = playbackInfo.fileIdx,
                                 sources = playbackInfo.sources,
                                 contentLanguage = playbackInfo.contentLanguage,
+                                pluginPlaybackSource = playbackInfo.pluginPlaybackSource,
                                 profileId = playbackInfo.profileId
                             )
                         )
@@ -675,6 +682,7 @@ private fun PlaybackNavHost(
                                 fileIdx = playbackInfo.fileIdx,
                                 sources = playbackInfo.sources,
                                 contentLanguage = playbackInfo.contentLanguage,
+                                pluginPlaybackSource = playbackInfo.pluginPlaybackSource,
                                 profileId = playbackInfo.profileId
                             )
                         ) {
@@ -811,6 +819,11 @@ private fun PlaybackNavHost(
                     defaultValue = null
                 },
                 navArgument("contentLanguage") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("pluginPlaybackSource") {
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null

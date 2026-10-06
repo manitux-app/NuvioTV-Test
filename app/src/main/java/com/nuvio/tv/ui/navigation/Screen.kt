@@ -1,6 +1,7 @@
 package com.nuvio.tv.ui.navigation
 
 import android.os.SystemClock
+import com.nuvio.tv.domain.model.PluginPlaybackSource
 import java.net.URLEncoder
 
 sealed class Screen(val route: String) {
@@ -27,7 +28,7 @@ sealed class Screen(val route: String) {
             return "detail/$encodedItemId/$encodedItemType?addonBaseUrl=$encodedAddon&returnFocusSeason=${returnFocusSeason ?: ""}&returnFocusEpisode=${returnFocusEpisode ?: ""}&returnToHomeOnBack=$returnToHomeOnBack&heroBackdropUrl=$encodedHeroBackdrop&playOnLoad=$playOnLoad&manualSelection=$manualSelection"
         }
     }
-    data object Stream : Screen("stream/{videoId}/{contentType}/{title}?poster={poster}&backdrop={backdrop}&logo={logo}&season={season}&episode={episode}&episodeName={episodeName}&genres={genres}&year={year}&contentId={contentId}&contentName={contentName}&runtime={runtime}&pluginContentId={pluginContentId}&pluginStreamSourceId={pluginStreamSourceId}&manualSelection={manualSelection}&returnToDetailOnBack={returnToDetailOnBack}&returnToHomeOnBack={returnToHomeOnBack}&startFromBeginning={startFromBeginning}&contentLanguage={contentLanguage}&profileId={profileId}") {
+    data object Stream : Screen("stream/{videoId}/{contentType}/{title}?poster={poster}&backdrop={backdrop}&logo={logo}&season={season}&episode={episode}&episodeName={episodeName}&genres={genres}&year={year}&contentId={contentId}&contentName={contentName}&runtime={runtime}&pluginContentId={pluginContentId}&pluginStreamSourceId={pluginStreamSourceId}&pluginPlaybackSource={pluginPlaybackSource}&manualSelection={manualSelection}&returnToDetailOnBack={returnToDetailOnBack}&returnToHomeOnBack={returnToHomeOnBack}&startFromBeginning={startFromBeginning}&contentLanguage={contentLanguage}&profileId={profileId}") {
         private fun encode(value: String): String =
             URLEncoder.encode(value, "UTF-8").replace("+", "%20")
 
@@ -48,6 +49,7 @@ sealed class Screen(val route: String) {
             runtime: Int? = null,
             pluginContentId: String? = null,
             pluginStreamSourceId: String? = null,
+            pluginPlaybackSource: PluginPlaybackSource? = null,
             manualSelection: Boolean = false,
             returnToDetailOnBack: Boolean = false,
             returnToHomeOnBack: Boolean = false,
@@ -68,11 +70,12 @@ sealed class Screen(val route: String) {
             val encodedContentName = contentName?.let { encode(it) } ?: ""
             val encodedPluginContentId = pluginContentId?.let { encode(it) } ?: ""
             val encodedPluginStreamSourceId = pluginStreamSourceId?.let { encode(it) } ?: ""
+            val encodedPluginPlaybackSource = pluginPlaybackSource?.let { encode(it.encode()) } ?: ""
             val encodedContentLanguage = contentLanguage?.let { encode(it) } ?: ""
-            return "stream/$encodedVideoId/$encodedContentTypePath/$encodedTitle?poster=$encodedPoster&backdrop=$encodedBackdrop&logo=$encodedLogo&season=${season ?: ""}&episode=${episode ?: ""}&episodeName=$encodedEpisodeName&genres=$encodedGenres&year=$encodedYear&contentId=$encodedContentId&contentName=$encodedContentName&runtime=${runtime ?: ""}&pluginContentId=$encodedPluginContentId&pluginStreamSourceId=$encodedPluginStreamSourceId&manualSelection=$manualSelection&returnToDetailOnBack=$returnToDetailOnBack&returnToHomeOnBack=$returnToHomeOnBack&startFromBeginning=$startFromBeginning&contentLanguage=$encodedContentLanguage&profileId=${profileId ?: ""}"
+            return "stream/$encodedVideoId/$encodedContentTypePath/$encodedTitle?poster=$encodedPoster&backdrop=$encodedBackdrop&logo=$encodedLogo&season=${season ?: ""}&episode=${episode ?: ""}&episodeName=$encodedEpisodeName&genres=$encodedGenres&year=$encodedYear&contentId=$encodedContentId&contentName=$encodedContentName&runtime=${runtime ?: ""}&pluginContentId=$encodedPluginContentId&pluginStreamSourceId=$encodedPluginStreamSourceId&pluginPlaybackSource=$encodedPluginPlaybackSource&manualSelection=$manualSelection&returnToDetailOnBack=$returnToDetailOnBack&returnToHomeOnBack=$returnToHomeOnBack&startFromBeginning=$startFromBeginning&contentLanguage=$encodedContentLanguage&profileId=${profileId ?: ""}"
         }
     }
-    data object Player : Screen("player/{streamUrl}/{title}?streamName={streamName}&year={year}&headers={headers}&contentId={contentId}&contentType={contentType}&contentName={contentName}&poster={poster}&backdrop={backdrop}&logo={logo}&videoId={videoId}&season={season}&episode={episode}&episodeTitle={episodeTitle}&bingeGroup={bingeGroup}&autoPlayNav={autoPlayNav}&returnToDetailOnBack={returnToDetailOnBack}&returnToHomeOnBack={returnToHomeOnBack}&filename={filename}&videoHash={videoHash}&videoSize={videoSize}&startFromBeginning={startFromBeginning}&addonName={addonName}&addonLogo={addonLogo}&streamDescription={streamDescription}&infoHash={infoHash}&fileIdx={fileIdx}&sources={sources}&contentLanguage={contentLanguage}&cloudSessionToken={cloudSessionToken}&launchStartedAtMs={launchStartedAtMs}&profileId={profileId}") {
+    data object Player : Screen("player/{streamUrl}/{title}?streamName={streamName}&year={year}&headers={headers}&contentId={contentId}&contentType={contentType}&contentName={contentName}&poster={poster}&backdrop={backdrop}&logo={logo}&videoId={videoId}&season={season}&episode={episode}&episodeTitle={episodeTitle}&bingeGroup={bingeGroup}&autoPlayNav={autoPlayNav}&returnToDetailOnBack={returnToDetailOnBack}&returnToHomeOnBack={returnToHomeOnBack}&filename={filename}&videoHash={videoHash}&videoSize={videoSize}&startFromBeginning={startFromBeginning}&addonName={addonName}&addonLogo={addonLogo}&streamDescription={streamDescription}&infoHash={infoHash}&fileIdx={fileIdx}&sources={sources}&contentLanguage={contentLanguage}&pluginPlaybackSource={pluginPlaybackSource}&cloudSessionToken={cloudSessionToken}&launchStartedAtMs={launchStartedAtMs}&profileId={profileId}") {
         private fun encode(value: String): String =
             URLEncoder.encode(value, "UTF-8").replace("+", "%20")
 
@@ -107,6 +110,7 @@ sealed class Screen(val route: String) {
             fileIdx: Int? = null,
             sources: List<String>? = null,
             contentLanguage: String? = null,
+            pluginPlaybackSource: PluginPlaybackSource? = null,
             cloudSessionToken: String? = null,
             launchStartedAtMs: Long = SystemClock.elapsedRealtime(),
             profileId: Int? = null
@@ -135,8 +139,9 @@ sealed class Screen(val route: String) {
             val encodedInfoHash = infoHash ?: ""
             val encodedSources = sources?.let { encode(org.json.JSONArray(it).toString()) } ?: ""
             val encodedContentLanguage = contentLanguage?.let { encode(it) } ?: ""
+            val encodedPluginPlaybackSource = pluginPlaybackSource?.let { encode(it.encode()) } ?: ""
             val encodedCloudSessionToken = cloudSessionToken?.let { encode(it) } ?: ""
-            return "player/$encodedUrl/$encodedTitle?streamName=$encodedStreamName&year=$encodedYear&headers=$encodedHeaders&contentId=$encodedContentId&contentType=$encodedContentType&contentName=$encodedContentName&poster=$encodedPoster&backdrop=$encodedBackdrop&logo=$encodedLogo&videoId=$encodedVideoId&season=${season ?: ""}&episode=${episode ?: ""}&episodeTitle=$encodedEpisodeTitle&bingeGroup=$encodedBingeGroup&autoPlayNav=$autoPlayNav&returnToDetailOnBack=$returnToDetailOnBack&returnToHomeOnBack=$returnToHomeOnBack&filename=$encodedFilename&videoHash=$encodedVideoHash&videoSize=${videoSize ?: ""}&startFromBeginning=$startFromBeginning&addonName=$encodedAddonName&addonLogo=$encodedAddonLogo&streamDescription=$encodedStreamDescription&infoHash=$encodedInfoHash&fileIdx=${fileIdx ?: ""}&sources=$encodedSources&contentLanguage=$encodedContentLanguage&cloudSessionToken=$encodedCloudSessionToken&launchStartedAtMs=$launchStartedAtMs&profileId=${profileId ?: ""}"
+            return "player/$encodedUrl/$encodedTitle?streamName=$encodedStreamName&year=$encodedYear&headers=$encodedHeaders&contentId=$encodedContentId&contentType=$encodedContentType&contentName=$encodedContentName&poster=$encodedPoster&backdrop=$encodedBackdrop&logo=$encodedLogo&videoId=$encodedVideoId&season=${season ?: ""}&episode=${episode ?: ""}&episodeTitle=$encodedEpisodeTitle&bingeGroup=$encodedBingeGroup&autoPlayNav=$autoPlayNav&returnToDetailOnBack=$returnToDetailOnBack&returnToHomeOnBack=$returnToHomeOnBack&filename=$encodedFilename&videoHash=$encodedVideoHash&videoSize=${videoSize ?: ""}&startFromBeginning=$startFromBeginning&addonName=$encodedAddonName&addonLogo=$encodedAddonLogo&streamDescription=$encodedStreamDescription&infoHash=$encodedInfoHash&fileIdx=${fileIdx ?: ""}&sources=$encodedSources&contentLanguage=$encodedContentLanguage&pluginPlaybackSource=$encodedPluginPlaybackSource&cloudSessionToken=$encodedCloudSessionToken&launchStartedAtMs=$launchStartedAtMs&profileId=${profileId ?: ""}"
         }
     }
     data object Search : Screen("search")

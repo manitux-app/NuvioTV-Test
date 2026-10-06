@@ -12,6 +12,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.nuvio.tv.domain.model.WatchProgress
+import com.nuvio.tv.domain.model.PluginPlaybackSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -792,7 +793,8 @@ class WatchProgressPreferences @Inject constructor(
             backdrop = existing.backdrop ?: remote.backdrop,
             logo = existing.logo ?: remote.logo,
             episodeTitle = existing.episodeTitle ?: remote.episodeTitle,
-            addonBaseUrl = remote.addonBaseUrl ?: existing.addonBaseUrl
+            addonBaseUrl = remote.addonBaseUrl ?: existing.addonBaseUrl,
+            pluginPlaybackSource = remote.pluginPlaybackSource ?: existing.pluginPlaybackSource
         )
     }
 
@@ -854,7 +856,10 @@ class WatchProgressPreferences @Inject constructor(
             traktPlaybackId = obj.getLong("traktPlaybackId", "trakt_playback_id"),
             traktMovieId = obj.getInt("traktMovieId", "trakt_movie_id"),
             traktShowId = obj.getInt("traktShowId", "trakt_show_id"),
-            traktEpisodeId = obj.getInt("traktEpisodeId", "trakt_episode_id")
+            traktEpisodeId = obj.getInt("traktEpisodeId", "trakt_episode_id"),
+            pluginPlaybackSource = obj.get("pluginPlaybackSource")
+                ?.takeUnless { it.isJsonNull }
+                ?.let { source -> runCatching { gson.fromJson(source, PluginPlaybackSource::class.java) }.getOrNull() }
         )
     }
 

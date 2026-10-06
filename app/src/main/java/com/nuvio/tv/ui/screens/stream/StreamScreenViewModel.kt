@@ -36,6 +36,12 @@ import com.nuvio.tv.data.local.BingeGroupCacheDataStore
 import com.nuvio.tv.domain.model.AddonStreams
 import com.nuvio.tv.domain.model.Meta
 import com.nuvio.tv.domain.model.PluginContentRegistry
+import com.nuvio.tv.domain.model.PluginContentRef
+import com.nuvio.tv.domain.model.PluginPlaybackSource
+import com.nuvio.tv.domain.model.PluginSourceRef
+import com.nuvio.tv.domain.model.RepositoryType
+import com.nuvio.tv.domain.model.HomeStreamSourceSelection
+import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.Stream
 import com.nuvio.tv.domain.model.Video
 import com.nuvio.tv.domain.model.WatchProgress
@@ -135,8 +141,13 @@ class StreamScreenViewModel @Inject constructor(
     private val contentId: String? = savedStateHandle.getOptionalString("contentId")
     private val contentName: String? = savedStateHandle.getOptionalString("contentName")
     private val pluginContentId: String? = savedStateHandle.getOptionalString("pluginContentId")
+    private val persistedPluginPlaybackSource = PluginPlaybackSource.decode(
+        savedStateHandle.getOptionalString("pluginPlaybackSource")
+    )
     private val pluginContent = pluginContentId?.let(PluginContentRegistry::get)
+        ?: persistedPluginPlaybackSource?.toPluginContent(contentType)
     private val homeStreamSelection = pluginContentId?.let(PluginContentRegistry::selectedStreamSelection)
+        ?: persistedPluginPlaybackSource?.toStreamSelection()
     private val selectedPluginScraperId: String? = savedStateHandle.getOptionalString("pluginStreamSourceId")
         ?: homeStreamSelection?.source?.scraperId
     private val contentLanguage: String? = savedStateHandle.getOptionalString("contentLanguage")
@@ -345,7 +356,7 @@ class StreamScreenViewModel @Inject constructor(
         return streamAutoPlayMode != StreamAutoPlayMode.MANUAL
     }
 
-    private fun loadStreams(forceRefresh: Boolean = false) {
+    private fun loadStreams(forceRefresh: Boolean = false, retryAllSources: Boolean = false) {
         streamRepository.setLocalPluginSearchPaused(false)
         streamLoadScope?.cancel()
         streamLoadScope = null
@@ -667,10 +678,10 @@ class StreamScreenViewModel @Inject constructor(
                     season = season,
                     episode = episode,
                     forceRefresh = forceRefresh,
-                    pluginContent = pluginContent,
-                    selectedPluginScraperId = selectedPluginScraperId,
-                    selectedPluginRepositoryId = homeStreamSelection?.repositoryId,
-                    restrictAddonSources = homeStreamSelection?.restrictAddonSources == true
+                    pluginContent = if (retryAllSources) null else pluginContent,
+                    selectedPluginScraperId = if (retryAllSources) null else selectedPluginScraperId,
+                    selectedPluginRepositoryId = if (retryAllSources) null else homeStreamSelection?.repositoryId,
+                    restrictAddonSources = !retryAllSources && homeStreamSelection?.restrictAddonSources == true
                 ).collect { result ->
                     when (result) {
                         is NetworkResult.Success -> {
@@ -774,6 +785,13 @@ class StreamScreenViewModel @Inject constructor(
                 if (!autoSelectTriggered) {
                     autoSelectTriggered = true
                     lastSuccessData?.let { applySuccess(it, isAllLoaded = true) }
+                }
+                if (!retryAllSources && persistedPluginPlaybackSource != null &&
+                    lastSuccessData.orEmpty().none { it.streams.isNotEmpty() }
+                ) {
+                    Log.w(TAG, "Saved plugin source returned no streams; retrying all sources")
+                    viewModelScope.launch { loadStreams(forceRefresh = true, retryAllSources = true) }
+                    return@launch
                 }
                 markRemainingSourceChipsAsError()
                 if (directAutoPlayFlowEnabledForSession && !resolvedAutoPlayTarget) {
@@ -1431,7 +1449,8 @@ class StreamScreenViewModel @Inject constructor(
             streamDescription = stream.description,
             fileIdx = stream.getEffectiveFileIdx(),
             sources = stream.sources,
-            contentLanguage = contentLanguage
+            contentLanguage = contentLanguage,
+            pluginPlaybackSource = pluginContent?.toPlaybackSource()
         )
         StreamSidecarSubtitles.set(playbackUrlFor(playbackInfo), stream.subtitles)
 
@@ -1952,7 +1971,8 @@ data class StreamPlaybackInfo(
     val streamDescription: String? = null,
     val fileIdx: Int? = null,
     val sources: List<String>? = null,
-    val contentLanguage: String? = null
+    val contentLanguage: String? = null,
+    val pluginPlaybackSource: PluginPlaybackSource? = null
 )
 
 private fun playbackUrlFor(playbackInfo: StreamPlaybackInfo): String? =
@@ -1962,6 +1982,36 @@ private fun playbackUrlFor(playbackInfo: StreamPlaybackInfo): String? =
 private fun Stream.isReadyForDebridPreparation(): Boolean =
     getStreamUrl() == null &&
         (isDirectDebrid() || (needsLocalDebridResolve() && debridCacheStatus?.state == StreamDebridCacheState.CACHED))
+
+private fun PluginPlaybackSource.toPluginContent(contentType: String): PluginContentRef? {
+    val kind = runCatching { RepositoryType.valueOf(kind) }.getOrNull() ?: return null
+    val type = ContentType.fromString(contentType)
+    if (type != ContentType.MOVIE && type != ContentType.SERIES) return null
+    return PluginContentRef(
+        source = PluginSourceRef(kind, repositoryId, scraperId, providerKey),
+        contentId = contentId,
+        type = type,
+        url = contentUrl
+    )
+}
+
+private fun PluginPlaybackSource.toStreamSelection(): HomeStreamSourceSelection? {
+    val kind = runCatching { RepositoryType.valueOf(kind) }.getOrNull() ?: return null
+    return HomeStreamSourceSelection(
+        source = PluginSourceRef(kind, repositoryId, scraperId, providerKey),
+        repositoryId = repositoryId,
+        restrictAddonSources = true
+    )
+}
+
+private fun PluginContentRef.toPlaybackSource(): PluginPlaybackSource = PluginPlaybackSource(
+    kind = source.kind.name,
+    repositoryId = source.repositoryId,
+    scraperId = source.scraperId,
+    providerKey = source.providerKey,
+    contentId = contentId,
+    contentUrl = url
+)
 
 private fun formatSpeed(context: android.content.Context, bytesPerSec: Long): String {
     return when {
