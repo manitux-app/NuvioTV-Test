@@ -1089,7 +1089,7 @@ fun PlayerScreen(
             type = uiState.contentType,
             description = uiState.description,
             cast = uiState.castMembers,
-            showClock = !viewModel.playbackTimeline.collectAsState().value.isLive,
+            showClock = !uiState.isLive,
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(2.5f)
@@ -1476,7 +1476,7 @@ fun PlayerScreen(
                 !uiState.showLoadingOverlay && !uiState.showPauseOverlay &&
                 !uiState.showSubtitleDelayOverlay && !uiState.showSubtitleTimingDialog &&
                 !uiState.showMoreDialog &&
-                !viewModel.playbackTimeline.collectAsState().value.isLive,
+                !uiState.isLive,
             enter = fadeIn(animationSpec = tween(150)),
             exit = fadeOut(animationSpec = tween(150)),
             modifier = Modifier.align(Alignment.BottomCenter)

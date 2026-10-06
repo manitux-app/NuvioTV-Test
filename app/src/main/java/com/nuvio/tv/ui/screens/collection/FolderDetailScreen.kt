@@ -466,9 +466,10 @@ private fun TabbedGridContent(
                     }
             }
 
+            val globalLandscape = LocalLandscapePosterMode.current
             LazyVerticalGrid(
                 state = gridState,
-                columns = GridCells.Adaptive(minSize = posterCardStyle.width),
+                columns = GridCells.Adaptive(minSize = if (globalLandscape) posterCardStyle.height else posterCardStyle.width),
                 modifier = Modifier
                     .fillMaxSize()
                     .onFocusChanged { gridHasFocus = it.hasFocus }

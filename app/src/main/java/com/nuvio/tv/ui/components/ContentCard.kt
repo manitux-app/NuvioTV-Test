@@ -251,8 +251,14 @@ fun ContentCard(
         val alwaysBackdropWithLogo = LocalAlwaysBackdropWithLogo.current
         val effectiveLandscapePoster = if (globalLandscape && alwaysBackdropWithLogo) null else item.landscapePoster
 
+        val useLandscapeAsExpanded = effectiveExpandEnabled && isBackdropExpanded &&
+            !alwaysBackdropWithLogo &&
+            !item.landscapePoster.isNullOrBlank()
+
         val imageUrl = if (globalLandscape) {
             effectiveLandscapePoster ?: item.background ?: item.poster
+        } else if (useLandscapeAsExpanded) {
+            item.landscapePoster
         } else if (effectiveExpandEnabled && isBackdropExpanded) {
             item.backdropUrl ?: item.poster
         } else {
@@ -487,7 +493,7 @@ fun ContentCard(
                     )
                 }
 
-                if (isBackdropExpanded && !globalLandscape) {
+                if (isBackdropExpanded && !globalLandscape && !(useLandscapeAsExpanded && !trailerFirstFrameRendered)) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
@@ -540,7 +546,8 @@ fun ContentCard(
                 // Landscape overlay — rendered AFTER trailer so it stays on top.
                 // Show on backdrop cards always; also show on any landscape card when expanded
                 // (trailer playing) so the logo stays visible over the video.
-                val showLandscapeOverlay = globalLandscape && (isLandscapeBackdropCard || isBackdropExpanded)
+                val showLandscapeOverlay = globalLandscape && (isLandscapeBackdropCard || isBackdropExpanded) &&
+                    !(useLandscapeAsExpanded && !trailerFirstFrameRendered)
                 val showLandscapeLogoOverlay = showLandscapeOverlay &&
                     !item.logo.isNullOrBlank() && !logoLoadFailed
                 if (showLandscapeLogoOverlay && logoModel != null) {

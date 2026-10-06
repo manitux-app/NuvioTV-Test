@@ -1145,6 +1145,9 @@ private fun ModernCarouselCard(
     val isCollectionFolder = item.payload is ModernPayload.CollectionFolder
     val hasCustomPosterOverlay = item.metaPreview?.rawPosterUrl != null
     val effectiveIgnoreLandscapePoster = alwaysShowLandscapeClearlogo && !hasCustomPosterOverlay
+    val useLandscapeAsExpanded = focusedPosterBackdropExpandEnabled && isBackdropExpanded &&
+        !alwaysShowLandscapeClearlogo &&
+        !item.metaPreview?.landscapePoster.isNullOrBlank()
     val baseImageUrl = if (focusedPosterBackdropExpandEnabled && isBackdropExpanded) {
         if (useLandscapeOverlayTreatment) {
             if (effectiveIgnoreLandscapePoster) {
@@ -1152,6 +1155,8 @@ private fun ModernCarouselCard(
             } else {
                 item.metaPreview?.landscapePoster ?: effectiveBackdropUrl ?: item.heroPreview.backdrop ?: item.imageUrl ?: item.heroPreview.poster
             }
+        } else if (useLandscapeAsExpanded) {
+            item.metaPreview?.landscapePoster
         } else {
             item.heroPreview.backdrop ?: item.imageUrl ?: item.heroPreview.poster
         }
