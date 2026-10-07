@@ -8,6 +8,7 @@ import com.nuvio.tv.domain.model.MetaPreview
 import com.nuvio.tv.domain.model.MetaTrailer
 import com.nuvio.tv.domain.model.NextToWatch
 import com.nuvio.tv.domain.model.TraktCommentReview
+import com.nuvio.tv.domain.model.PluginComment
 import com.nuvio.tv.domain.model.Video
 import com.nuvio.tv.domain.model.WatchProgress
 import com.nuvio.tv.domain.model.LibraryListTab
@@ -94,6 +95,13 @@ data class MetaDetailsUiState(
     val commentsMode: CommentsMode = CommentsMode.TITLE,
     val commentsEpisodeTarget: Video? = null,
     val selectedComment: TraktCommentReview? = null,
+    val supportsPluginComments: Boolean = false,
+    val showPluginComments: Boolean = false,
+    val pluginComments: List<PluginComment> = emptyList(),
+    val pluginCommentsNextPageToken: String? = null,
+    val isPluginCommentsLoading: Boolean = false,
+    val isPluginCommentsLoadingMore: Boolean = false,
+    val pluginCommentsError: String? = null,
     val userMessage: String? = null,
     val userMessageIsError: Boolean = false
 )
@@ -111,6 +119,9 @@ sealed class MetaDetailsEvent {
     data class OnCommentSelected(val review: TraktCommentReview) : MetaDetailsEvent()
     data class OnAdvanceCommentOverlay(val direction: Int) : MetaDetailsEvent()
     data object OnDismissCommentOverlay : MetaDetailsEvent()
+    data object OnShowPluginComments : MetaDetailsEvent()
+    data object OnDismissPluginComments : MetaDetailsEvent()
+    data object OnLoadMorePluginComments : MetaDetailsEvent()
     data object OnBackPress : MetaDetailsEvent()
     data object OnUserInteraction : MetaDetailsEvent()
     data object OnPlayButtonFocused : MetaDetailsEvent()

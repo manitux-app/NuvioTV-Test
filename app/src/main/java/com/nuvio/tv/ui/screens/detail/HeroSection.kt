@@ -74,6 +74,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.painter.Painter
 import coil3.request.ImageRequest
@@ -100,6 +101,8 @@ fun HeroContentSection(
     isMovieWatched: Boolean,
     isMovieWatchedPending: Boolean,
     onToggleMovieWatched: () -> Unit,
+    showPluginComments: Boolean = false,
+    onShowPluginComments: () -> Unit = {},
     trailerAvailable: Boolean = false,
     onTrailerClick: () -> Unit = {},
     showRandomEpisodeButton: Boolean = false,
@@ -289,6 +292,15 @@ fun HeroContentSection(
                                 selected = isMovieWatched,
                                 selectedContainerColor = Color.White,
                                 selectedContentColor = Color.Black,
+                                onFocused = onHeroActionFocused
+                            )
+                        }
+
+                        if (showPluginComments) {
+                            ActionIconButton(
+                                icon = Icons.Default.Chat,
+                                contentDescription = stringResource(R.string.plugin_comments_title),
+                                onClick = onShowPluginComments,
                                 onFocused = onHeroActionFocused
                             )
                         }

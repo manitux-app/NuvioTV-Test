@@ -23,6 +23,8 @@ import com.nuvio.tv.domain.model.ScraperManifestInfo
 import com.nuvio.tv.domain.model.PluginCatalogDescriptor
 import com.nuvio.tv.domain.model.PluginCatalogItem
 import com.nuvio.tv.domain.model.PluginCatalogPage
+import com.nuvio.tv.domain.model.PluginComment
+import com.nuvio.tv.domain.model.PluginCommentsPage
 import com.nuvio.tv.domain.model.PluginContentRef
 import com.nuvio.tv.domain.model.PluginExternalIds
 import com.nuvio.tv.domain.model.PluginSourceRef
@@ -975,6 +977,46 @@ class PluginManager @Inject constructor(
     suspend fun executeExternalSearch(source: PluginSourceRef, query: String): PluginCatalogPage =
         PluginCatalogPage(externalExtensionRunner.search(source, query))
 
+    /** Executes comments for a JS catalog item. Unsupported sources return an empty page. */
+    suspend fun executeComments(
+        content: PluginContentRef,
+        pageToken: String? = null,
+        language: String? = null
+    ): PluginCommentsPage {
+        if (content.source.kind != RepositoryType.NUVIO_JS) return PluginCommentsPage(emptyList())
+        val scraper = scrapers.first().firstOrNull { it.id == content.source.scraperId && it.enabled }
+            ?.takeIf { it.supportsComments } ?: return PluginCommentsPage(emptyList())
+        val code = dataStore.getScraperCode(scraper.id) ?: return PluginCommentsPage(emptyList())
+        val raw = withContext(pluginDispatcher) {
+            runtime.executeComments(code, content.contentId, content.url, content.type.toApiString(), pageToken,
+                language, scraper.id, dataStore.getScraperSettings(scraper.id))
+        }
+        val response = com.google.gson.JsonParser.parseString(raw)
+        val root = response.takeIf { it.isJsonObject }?.asJsonObject
+        val commentElements = when {
+            root != null -> root.getAsJsonArray("comments") ?: root.getAsJsonArray("items")
+            response.isJsonArray -> response.asJsonArray
+            else -> null
+        }
+        if (commentElements == null) {
+            Log.w(TAG, "Plugin comments response has no comments array for ${scraper.id}")
+            return PluginCommentsPage(emptyList())
+        }
+        val comments = commentElements.mapIndexedNotNull { index, element ->
+            val value = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapIndexedNotNull null
+            val id = value.string("id") ?: "${content.contentId}:${pageToken.orEmpty()}:$index"
+            val author = value.string("author") ?: value.string("name") ?: value.string("username")
+                ?: return@mapIndexedNotNull null
+            val text = value.string("text") ?: value.string("comment") ?: value.string("body")
+                ?: return@mapIndexedNotNull null
+            PluginComment(id, author, text)
+        }
+        if (commentElements.size() > 0 && comments.isEmpty()) {
+            Log.w(TAG, "Plugin comments response contained ${commentElements.size()} unrecognized comments for ${scraper.id}")
+        }
+        return PluginCommentsPage(comments, root?.string("nextPageToken"))
+    }
+
     private fun com.google.gson.JsonObject.string(name: String): String? =
         get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString?.takeIf { it.isNotBlank() }
     private fun com.google.gson.JsonObject.int(name: String): Int? =
@@ -1242,6 +1284,7 @@ class PluginManager @Inject constructor(
                     formats = info.formats,
                     supportsStreams = info.supportsStreams,
                     supportsSearch = info.supportsSearch,
+                    supportsComments = info.supportsComments,
                     catalogs = info.catalogs
                 )
                 

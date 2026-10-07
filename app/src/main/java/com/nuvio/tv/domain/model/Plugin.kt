@@ -68,6 +68,8 @@ data class ScraperManifestInfo(
     val supportsStreams: Boolean = true,
     /** Declares the optional search(args) entry point. */
     val supportsSearch: Boolean = false,
+    /** Declares the optional comments(args) entry point for catalog items. */
+    val supportsComments: Boolean = false,
     val catalogs: List<PluginCatalogManifestInfo> = emptyList()
 )
 
@@ -99,6 +101,7 @@ data class ScraperInfo(
     val type: RepositoryType = RepositoryType.NUVIO_JS,
     val supportsStreams: Boolean = true,
     val supportsSearch: Boolean = false,
+    val supportsComments: Boolean = false,
     val catalogs: List<PluginCatalogManifestInfo> = emptyList()
 ) {
     fun supportsType(type: String): Boolean {

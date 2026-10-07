@@ -182,6 +182,11 @@
     <string name="hero_remove_from_library">Remove from library</string>
     <string name="hero_mark_watched">Mark as watched</string>
     <string name="hero_mark_unwatched">Mark as unwatched</string>
+    <string name="plugin_comments_title">Comments</string>
+    <string name="plugin_comments_empty">No comments yet</string>
+    <string name="plugin_comments_load_more">Load more</string>
+    <string name="plugin_comments_loading_more">Loading more comments?</string>
+    <string name="plugin_comments_error">Unable to load comments.</string>
     <string name="hero_play_trailer">Play trailer</string>
     <string name="hero_press_back_trailer">Press back to exit trailer</string>
     <string name="hero_synopsis_read_more">Read more</string>

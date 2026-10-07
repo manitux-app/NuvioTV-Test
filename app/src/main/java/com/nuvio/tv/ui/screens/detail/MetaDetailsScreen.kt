@@ -870,6 +870,13 @@ fun MetaDetailsScreen(
                     detailImdbRatingsVisibility = uiState.detailImdbRatingsVisibility,
                     isMovieWatched = uiState.isMovieWatched,
                     isMovieWatchedPending = uiState.isMovieWatchedPending,
+                    supportsPluginComments = uiState.supportsPluginComments,
+                    showPluginComments = uiState.showPluginComments,
+                    pluginComments = uiState.pluginComments,
+                    pluginCommentsNextPageToken = uiState.pluginCommentsNextPageToken,
+                    isPluginCommentsLoading = uiState.isPluginCommentsLoading,
+                    isPluginCommentsLoadingMore = uiState.isPluginCommentsLoadingMore,
+                    pluginCommentsError = uiState.pluginCommentsError,
                     moreLikeThis = uiState.moreLikeThis,
                     moreLikeThisSource = uiState.moreLikeThisSource,
                     posterCardCornerRadiusDp = posterCardCornerRadiusDp,
@@ -947,6 +954,9 @@ fun MetaDetailsScreen(
                     onToggleLibrary = { viewModel.onEvent(MetaDetailsEvent.OnToggleLibrary) },
                     onLibraryLongPress = { viewModel.onEvent(MetaDetailsEvent.OnLibraryLongPress) },
                     onToggleMovieWatched = { viewModel.onEvent(MetaDetailsEvent.OnToggleMovieWatched) },
+                    onShowPluginComments = { viewModel.onEvent(MetaDetailsEvent.OnShowPluginComments) },
+                    onDismissPluginComments = { viewModel.onEvent(MetaDetailsEvent.OnDismissPluginComments) },
+                    onLoadMorePluginComments = { viewModel.onEvent(MetaDetailsEvent.OnLoadMorePluginComments) },
                     onToggleEpisodeWatched = { video ->
                         viewModel.onEvent(MetaDetailsEvent.OnToggleEpisodeWatched(video))
                     },
@@ -1209,6 +1219,13 @@ private fun MetaDetailsContent(
     detailImdbRatingsVisibility: DetailImdbRatingsVisibility,
     isMovieWatched: Boolean,
     isMovieWatchedPending: Boolean,
+    supportsPluginComments: Boolean,
+    showPluginComments: Boolean,
+    pluginComments: List<com.nuvio.tv.domain.model.PluginComment>,
+    pluginCommentsNextPageToken: String?,
+    isPluginCommentsLoading: Boolean,
+    isPluginCommentsLoadingMore: Boolean,
+    pluginCommentsError: String?,
     moreLikeThis: List<MetaPreview>,
     moreLikeThisSource: MoreLikeThisSource?,
     posterCardCornerRadiusDp: Int = 12,
@@ -1244,6 +1261,9 @@ private fun MetaDetailsContent(
     onToggleLibrary: () -> Unit,
     onLibraryLongPress: () -> Unit,
     onToggleMovieWatched: () -> Unit,
+    onShowPluginComments: () -> Unit,
+    onDismissPluginComments: () -> Unit,
+    onLoadMorePluginComments: () -> Unit,
     onToggleEpisodeWatched: (Video) -> Unit,
     onMarkSeasonWatched: (Int) -> Unit,
     onMarkSeasonUnwatched: (Int) -> Unit,
@@ -1293,6 +1313,17 @@ private fun MetaDetailsContent(
 ) {
     val playbackAvailability = LocalPlaybackAvailability.current
     val canLoadMoreComments = commentsCurrentPage in 1 until commentsPageCount
+    if (showPluginComments) {
+        PluginCommentsDialog(
+            comments = pluginComments,
+            isLoading = isPluginCommentsLoading,
+            isLoadingMore = isPluginCommentsLoadingMore,
+            error = pluginCommentsError,
+            canLoadMore = pluginCommentsNextPageToken != null,
+            onLoadMore = onLoadMorePluginComments,
+            onDismiss = onDismissPluginComments
+        )
+    }
     val selectedCommentIndex = remember(comments, selectedComment?.id) {
         selectedComment?.let { review -> comments.indexOfFirst { it.id == review.id } } ?: -1
     }
@@ -2469,6 +2500,8 @@ private fun MetaDetailsContent(
                         isMovieWatched = isMovieWatched,
                         isMovieWatchedPending = isMovieWatchedPending,
                         onToggleMovieWatched = onToggleMovieWatched,
+                        showPluginComments = supportsPluginComments,
+                        onShowPluginComments = onShowPluginComments,
                         mdbListRatings = visibleMdbListRatings,
                         mdbListRatingOrder = mdbListRatingOrder,
                         hideMetaInfoImdb = !showStandardOverallRatings,

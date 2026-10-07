@@ -119,6 +119,22 @@ data class PluginCatalogPage(
     val nextPageToken: String? = null
 )
 
+/** A comment returned by a catalog plugin. The id is scoped to its content item. */
+data class PluginComment(
+    val id: String,
+    val author: String,
+    val text: String
+) {
+    init {
+        require(id.isNotBlank() && author.isNotBlank() && text.isNotBlank())
+    }
+}
+
+data class PluginCommentsPage(
+    val comments: List<PluginComment>,
+    val nextPageToken: String? = null
+)
+
 /** A plugin cursor must advance and return content before Home offers another page. */
 fun PluginCatalogPage.hasNextPageAfter(
     requestedPageToken: String?,

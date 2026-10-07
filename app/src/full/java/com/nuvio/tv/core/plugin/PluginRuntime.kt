@@ -261,6 +261,20 @@ class PluginRuntime @Inject constructor() {
         })();
     """.trimIndent()
 
+    private fun getCommentsCallCode(): String = """
+        (async function() {
+            try {
+                var comments = module.exports.comments || globalThis.comments;
+                if (!comments) { __capture_result(JSON.stringify({ comments: [] })); return; }
+                var result = await comments(JSON.parse(__get_call_args()));
+                __capture_result(JSON.stringify(result || { comments: [] }));
+            } catch (e) {
+                console.error("comments error:", e.message || e);
+                __capture_result(JSON.stringify({ comments: [] }));
+            }
+        })();
+    """.trimIndent()
+
     /** Runs the optional v1 getCatalog entry point and returns its JSON response unchanged. */
     suspend fun executeCatalog(
         code: String,
@@ -291,6 +305,15 @@ class PluginRuntime @Inject constructor() {
             mapOf("query" to query, "language" to language),
             isCatalogExecution = true
         )
+    }
+
+    suspend fun executeComments(
+        code: String, contentId: String, contentUrl: String?, type: String, pageToken: String?, language: String?,
+        scraperId: String, scraperSettings: Map<String, Any> = emptyMap()
+    ): String = withTimeout(PLUGIN_TIMEOUT_MS) {
+        executePluginInternal(code, scraperId, scraperSettings, getCommentsCallCode(),
+            mapOf("contentId" to contentId, "url" to contentUrl, "type" to type, "pageToken" to pageToken, "language" to language),
+            isCatalogExecution = true)
     }
 
     private suspend fun executePluginInternal(

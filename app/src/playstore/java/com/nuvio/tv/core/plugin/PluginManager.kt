@@ -3,6 +3,8 @@ package com.nuvio.tv.core.plugin
 import com.nuvio.tv.domain.model.LocalScraperResult
 import com.nuvio.tv.domain.model.PluginRepository
 import com.nuvio.tv.domain.model.PluginSourceRef
+import com.nuvio.tv.domain.model.PluginContentRef
+import com.nuvio.tv.domain.model.PluginCommentsPage
 import com.nuvio.tv.domain.model.RemotePluginInfo
 import com.nuvio.tv.domain.model.ScraperInfo
 import kotlinx.coroutines.flow.Flow
@@ -77,6 +79,12 @@ class PluginManager {
         season: Int?,
         episode: Int?
     ): List<LocalScraperResult> = emptyList()
+
+    suspend fun executeComments(
+        content: PluginContentRef,
+        pageToken: String? = null,
+        language: String? = null
+    ): PluginCommentsPage = PluginCommentsPage(emptyList())
 
     suspend fun testScraper(scraperId: String): Result<Pair<List<LocalScraperResult>, TestDiagnostics>> =
         Result.failure(UnsupportedOperationException("Plugins are not available in this build."))

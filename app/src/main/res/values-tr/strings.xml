@@ -187,6 +187,11 @@
     <string name="hero_add_to_library">Kütüphaneye ekle</string>
     <string name="hero_remove_from_library">Kütüphaneden kaldır</string>
     <string name="hero_mark_watched">İzlendi olarak işaretle</string>
+    <string name="plugin_comments_title">Yorumlar</string>
+    <string name="plugin_comments_empty">Henüz yorum yok</string>
+    <string name="plugin_comments_load_more">Daha fazla yükle</string>
+    <string name="plugin_comments_loading_more">Daha fazla yorum yükleniyor…</string>
+    <string name="plugin_comments_error">Yorumlar yüklenemedi.</string>
     <string name="hero_mark_unwatched">İzlenmedi olarak işaretle</string>
     <string name="hero_play_trailer">Fragmanı izle</string>
     <string name="hero_press_back_trailer">Fragmandan çıkmak için geri tuşuna basın</string>

@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.core.player.StreamAutoPlayPolicy
+import com.nuvio.tv.core.plugin.PluginManager
 import com.nuvio.tv.core.profile.ProfileManager
 import com.nuvio.tv.core.network.NetworkResult
 import com.nuvio.tv.core.poster.withCustomPosterUrls
@@ -81,6 +82,7 @@ private const val TAG = "MetaDetailsViewModel"
 class MetaDetailsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val metaRepository: MetaRepository,
+    private val pluginManager: PluginManager,
     private val tmdbSettingsDataStore: TmdbSettingsDataStore,
     private val tmdbService: TmdbService,
     private val tmdbMetadataService: TmdbMetadataService,
@@ -142,6 +144,7 @@ class MetaDetailsViewModel @Inject constructor(
     private var nextToWatchJob: Job? = null
     private var commentsJob: Job? = null
     private var commentsLoadMoreJob: Job? = null
+    private var pluginCommentsJob: Job? = null
     private var pendingDefaultLibraryToggle: LibraryEntryInput? = null
 
     private var trailerDelayMs = 7000L
@@ -169,6 +172,7 @@ class MetaDetailsViewModel @Inject constructor(
         observeMetaViewSettings()
         observeTrailerAutoplaySettings()
         observeTraktCommentsAvailability()
+        observePluginCommentsAvailability()
         observeLibraryState()
         observeWatchProgress()
         observeWatchedEpisodes()
@@ -358,6 +362,9 @@ class MetaDetailsViewModel @Inject constructor(
             is MetaDetailsEvent.OnCommentSelected -> openCommentOverlay(event.review)
             is MetaDetailsEvent.OnAdvanceCommentOverlay -> advanceCommentOverlay(event.direction)
             MetaDetailsEvent.OnDismissCommentOverlay -> dismissCommentOverlay()
+            MetaDetailsEvent.OnShowPluginComments -> loadPluginComments()
+            MetaDetailsEvent.OnDismissPluginComments -> dismissPluginComments()
+            MetaDetailsEvent.OnLoadMorePluginComments -> loadMorePluginComments()
             MetaDetailsEvent.OnBackPress -> { /* Handle in screen */ }
             MetaDetailsEvent.OnUserInteraction -> handleUserInteraction()
             MetaDetailsEvent.OnPlayButtonFocused -> handlePlayButtonFocused()
@@ -1321,6 +1328,73 @@ class MetaDetailsViewModel @Inject constructor(
     private fun cancelCommentsRequests() {
         commentsJob?.cancel()
         commentsLoadMoreJob?.cancel()
+    }
+
+    private fun observePluginCommentsAvailability() {
+        val content = pluginContentRef ?: return
+        viewModelScope.launch {
+            pluginManager.scrapers.collectLatest { scrapers ->
+                val supported = scrapers.any { scraper ->
+                    scraper.id == content.source.scraperId && scraper.enabled && scraper.supportsComments
+                }
+                _uiState.update { state ->
+                    if (state.supportsPluginComments == supported) state else state.copy(
+                        supportsPluginComments = supported,
+                        showPluginComments = state.showPluginComments && supported
+                    )
+                }
+            }
+        }
+    }
+
+    private fun loadPluginComments(pageToken: String? = null) {
+        val content = pluginContentRef ?: return
+        if (!_uiState.value.supportsPluginComments) return
+        pluginCommentsJob?.cancel()
+        pluginCommentsJob = viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    showPluginComments = true,
+                    isPluginCommentsLoading = pageToken == null,
+                    isPluginCommentsLoadingMore = pageToken != null,
+                    pluginCommentsError = null,
+                    pluginComments = if (pageToken == null) emptyList() else state.pluginComments
+                )
+            }
+            try {
+                val page = pluginManager.executeComments(content, pageToken, localizedContext.resources.configuration.locales[0].language)
+                _uiState.update { state ->
+                    state.copy(
+                        pluginComments = if (pageToken == null) page.comments else state.pluginComments + page.comments.filterNot { next -> state.pluginComments.any { it.id == next.id } },
+                        pluginCommentsNextPageToken = page.nextPageToken,
+                        isPluginCommentsLoading = false,
+                        isPluginCommentsLoadingMore = false
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w(TAG, "Failed to load plugin comments for ${content.contentId}: ${error.message}")
+                _uiState.update {
+                    it.copy(
+                        isPluginCommentsLoading = false,
+                        isPluginCommentsLoadingMore = false,
+                        pluginCommentsError = localizedContext.getString(R.string.plugin_comments_error)
+                    )
+                }
+            }
+        }
+    }
+
+    private fun loadMorePluginComments() {
+        val token = _uiState.value.pluginCommentsNextPageToken ?: return
+        if (_uiState.value.isPluginCommentsLoadingMore) return
+        loadPluginComments(token)
+    }
+
+    private fun dismissPluginComments() {
+        pluginCommentsJob?.cancel()
+        _uiState.update { it.copy(showPluginComments = false, isPluginCommentsLoading = false, isPluginCommentsLoadingMore = false) }
     }
 
     private fun loadMoreLikeThisAsync(meta: Meta) {
