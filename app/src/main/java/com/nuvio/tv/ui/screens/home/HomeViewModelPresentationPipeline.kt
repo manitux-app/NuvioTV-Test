@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.LocaleCache
 import com.nuvio.tv.core.build.AppFeaturePolicy
 import com.nuvio.tv.core.network.NetworkResult
+import com.nuvio.tv.core.poster.CustomPosterScreen
+import com.nuvio.tv.core.poster.patternForScreen
 import com.nuvio.tv.core.poster.withCustomPosterUrls
 import com.nuvio.tv.core.tmdb.TmdbEnrichment
 import com.nuvio.tv.domain.model.FocusedPosterTrailerPlaybackTarget
@@ -268,23 +270,59 @@ internal fun HomeViewModel.observeLayoutPreferencesPipeline() {
     }
 }
 
+private data class ContinueWatchingPosterInput(
+    val enabled: Boolean,
+    val pattern: String,
+    val screens: Set<CustomPosterScreen>,
+    val continueWatchingItems: List<ContinueWatchingItem>,
+    val upcomingItems: List<ContinueWatchingItem>,
+)
+
+private data class ContinueWatchingPosterOverlay(
+    val continueWatchingItems: List<ContinueWatchingItem>,
+    val upcomingItems: List<ContinueWatchingItem>,
+)
+
 @OptIn(FlowPreview::class)
 internal fun HomeViewModel.observeModernHomePresentationPipeline() {
     viewModelScope.launch {
-        combine(uiState, _currentLocaleTag) { state, localeTag ->
+        // Poster URLs are resolved only when the list or the pattern changes.
+        // uiState also emits on focus and catalog updates; resolving there
+        // reran placeholder replacement for every row on each scroll step.
+        val posterOverlay = uiState
+            .map { state ->
+                ContinueWatchingPosterInput(
+                    enabled = state.continueWatchingEnabled,
+                    pattern = state.customPosterUrlPattern,
+                    screens = state.customPosterEnabledScreens,
+                    continueWatchingItems = state.continueWatchingItems,
+                    upcomingItems = state.upcomingItems,
+                )
+            }
+            .distinctUntilChanged()
+            .map { input ->
+                if (!input.enabled) {
+                    ContinueWatchingPosterOverlay(emptyList(), emptyList())
+                } else {
+                    val pattern = patternForScreen(
+                        input.pattern,
+                        CustomPosterScreen.CONTINUE_WATCHING,
+                        input.screens,
+                    )
+                    ContinueWatchingPosterOverlay(
+                        continueWatchingItems = input.continueWatchingItems.withCustomPosterUrls(pattern),
+                        upcomingItems = input.upcomingItems.withCustomPosterUrls(pattern),
+                    )
+                }
+            }
+            .distinctUntilChanged()
+
+        combine(uiState, _currentLocaleTag, posterOverlay) { state, localeTag, overlay ->
                 ModernHomePresentationInput(
                     homeRows = state.homeRows,
                     catalogRows = state.catalogRows,
-                    continueWatchingItems = if (state.continueWatchingEnabled)
-                        state.continueWatchingItems.withCustomPosterUrls(
-                            com.nuvio.tv.core.poster.patternForScreen(state.customPosterUrlPattern, com.nuvio.tv.core.poster.CustomPosterScreen.CONTINUE_WATCHING, state.customPosterEnabledScreens)
-                        )
-                    else emptyList(),
-                    upcomingItems = if (state.continueWatchingEnabled)
-                        state.upcomingItems.withCustomPosterUrls(
-                            com.nuvio.tv.core.poster.patternForScreen(state.customPosterUrlPattern, com.nuvio.tv.core.poster.CustomPosterScreen.CONTINUE_WATCHING, state.customPosterEnabledScreens)
-                        )
-                    else emptyList(),
+                    continueWatchingItems = overlay.continueWatchingItems,
+                    upcomingItems = overlay.upcomingItems,
                     useLandscapePosters = state.modernLandscapePostersEnabled,
                     showCatalogTypeSuffix = state.catalogTypeSuffixEnabled,
                     showFullReleaseDate = state.showFullReleaseDate,

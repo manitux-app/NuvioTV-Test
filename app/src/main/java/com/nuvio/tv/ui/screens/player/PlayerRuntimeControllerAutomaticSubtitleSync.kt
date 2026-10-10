@@ -136,6 +136,7 @@ internal fun PlayerRuntimeController.maybeRunAutomaticSubtitleSync(
                 AutomaticSubtitleSync.downloadSubtitleBody(
                     url = selectedUrl,
                     headers = selectedSubtitle.headers.orEmpty(),
+                    languageHint = selectedSubtitle.lang,
                 )
             } catch (cancel: CancellationException) {
                 throw cancel

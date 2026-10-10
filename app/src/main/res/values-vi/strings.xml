@@ -2074,6 +2074,8 @@
     <string name="library_sort_provider_order">Thứ tự nhà cung cấp</string>
     <string name="library_sort_added_desc">Đã thêm ↓</string>
     <string name="library_sort_added_asc">Đã thêm ↑</string>
+    <string name="library_sort_released_desc">Đã phát hành ↓</string>
+    <string name="library_sort_released_asc">Đã phát hành ↑</string>
     <string name="library_sort_title_asc">Tên A-Z</string>
     <string name="library_sort_title_desc">Tên Z-A</string>
     <string name="library_error_sort_failed">Không thể tải thứ tự sắp xếp. Đang hiển thị theo thứ tự của nhà cung cấp.</string>

@@ -144,6 +144,7 @@ internal object AutomaticSubtitleSync {
                     loadSelectedSubtitle(
                         url = selectedSubtitleUrl,
                         headers = selectedSubtitleHeaders,
+                        languageHint = preferredLanguage,
                     )
                 }
             }
@@ -199,6 +200,7 @@ internal object AutomaticSubtitleSync {
                         loadSelectedSubtitle(
                             url = candidate.url,
                             headers = emptyMap(),
+                            languageHint = candidate.language,
                             downloadSemaphore = alternativeDownloadSemaphore,
                             parseSemaphore = alternativeParseSemaphore,
                         )
@@ -353,6 +355,7 @@ internal object AutomaticSubtitleSync {
                             loadSelectedSubtitle(
                                 url = candidate.url,
                                 headers = emptyMap(),
+                                languageHint = candidate.language,
                                 downloadSemaphore = alternativeDownloadSemaphore,
                                 parseSemaphore = alternativeParseSemaphore,
                             )
@@ -562,6 +565,7 @@ internal object AutomaticSubtitleSync {
                             loadSelectedSubtitle(
                                 url = candidate.url,
                                 headers = emptyMap(),
+                                languageHint = candidate.language,
                                 downloadSemaphore = alternativeDownloadSemaphore,
                                 parseSemaphore = alternativeParseSemaphore,
                             )
@@ -1346,6 +1350,7 @@ internal object AutomaticSubtitleSync {
         url: String,
         headers: Map<String, String>,
         rawBodyOverride: String? = null,
+        languageHint: String? = null,
         downloadSemaphore: Semaphore? = null,
         parseSemaphore: Semaphore? = null,
     ): LoadedSubtitle? {
@@ -1367,10 +1372,10 @@ internal object AutomaticSubtitleSync {
             try {
                 if (downloadSemaphore != null) {
                     downloadSemaphore.withPermit {
-                        downloadSubtitleTextWithSingle429Retry(url, headers)
+                        downloadSubtitleTextWithSingle429Retry(url, headers, languageHint)
                     }
                 } else {
-                    downloadSubtitleTextWithSingle429Retry(url, headers)
+                    downloadSubtitleTextWithSingle429Retry(url, headers, languageHint)
                 }
             } catch (cancel: CancellationException) {
                 throw cancel
@@ -1428,20 +1433,23 @@ internal object AutomaticSubtitleSync {
     internal suspend fun downloadSubtitleBody(
         url: String,
         headers: Map<String, String>,
+        languageHint: String? = null,
     ): String =
         downloadSubtitleTextWithSingle429Retry(
             url = url,
             headers = headers,
+            languageHint = languageHint,
         )
 
     private suspend fun downloadSubtitleTextWithSingle429Retry(
         url: String,
         headers: Map<String, String>,
+        languageHint: String?,
     ): String {
-        val first = requestSubtitle(url, headers)
+        val first = requestSubtitle(url, headers, languageHint)
         if (first.status == 429) {
             delay(HTTP_429_RETRY_DELAY_MS)
-            return validatedSubtitleBody(requestSubtitle(url, headers))
+            return validatedSubtitleBody(requestSubtitle(url, headers, languageHint))
         }
         return validatedSubtitleBody(first)
     }
@@ -1449,12 +1457,14 @@ internal object AutomaticSubtitleSync {
     private suspend fun requestSubtitle(
         url: String,
         headers: Map<String, String>,
+        languageHint: String?,
     ): AutoSyncRawHttpResponse =
         withTimeoutOrNull(SUBTITLE_DOWNLOAD_TIMEOUT_MS) {
             AutoSyncSubtitleHttp.get(
                 url = url,
                 headers = mapOf("Accept" to "*/*") + headers,
                 maxResponseBodyBytes = MAX_SUBTITLE_RESPONSE_BYTES,
+                languageHint = languageHint,
             )
         } ?: error("subtitle request timed out after ${SUBTITLE_DOWNLOAD_TIMEOUT_MS}ms")
 
