@@ -1032,6 +1032,7 @@ open class MainActivity : ComponentActivity() {
                             add(Screen.Search.route)
                             add(Screen.Library.route)
                             add(Screen.Settings.route)
+                            add(Screen.NuvioTr.route)
                             if (discoverLocation == DiscoverLocation.IN_SIDEBAR) {
                                 add(Screen.Discover.route)
                             }
@@ -1043,12 +1044,14 @@ open class MainActivity : ComponentActivity() {
                     val strNavSearch = stringResource(R.string.nav_search)
                     val strNavLibrary = stringResource(R.string.nav_library)
                     val strNavSettings = stringResource(R.string.nav_settings)
+                    val strNavNuvioTr = stringResource(R.string.nuviotr_title)
                     val drawerItems = remember(
                         strNavHome,
                         strNavDiscover,
                         strNavSearch,
                         strNavLibrary,
                         strNavSettings,
+                        strNavNuvioTr,
                         discoverLocation
                     ) {
                         buildList {
@@ -1087,6 +1090,13 @@ open class MainActivity : ComponentActivity() {
                                     route = Screen.Settings.route,
                                     label = strNavSettings,
                                     iconRes = R.raw.sidebar_settings
+                                )
+                            )
+                            add(
+                                DrawerItem(
+                                    route = Screen.NuvioTr.route,
+                                    label = strNavNuvioTr,
+                                    iconRes = R.raw.sidebar_nuviotr
                                 )
                             )
                         }

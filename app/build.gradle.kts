@@ -58,6 +58,10 @@ val doviExtractorHookReady = parseBooleanProperty(
 val doviEnableRealLink = parseBooleanProperty(
     resolveProperty(devProperties, localProperties, "DOVI_ENABLE_REAL_LINK")
 )
+// Keep remote plugin sync opt-in until the nuvio.tv integration is explicitly approved.
+val remotePluginSyncEnabled = parseBooleanProperty(
+    resolveProperty(devProperties, localProperties, "REMOTE_PLUGIN_SYNC_ENABLED", "false")
+)
 val doviStaticLibPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_STATIC_LIB")
 val doviIncludeDirPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_INCLUDE_DIR")
 val doviPrebuiltRootPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_PREBUILT_ROOT")
@@ -90,11 +94,11 @@ val useLocalFfmpegDecoder = truthy(
 val releaseStoreFilePath = env("NUVIO_RELEASE_STORE_FILE")
     ?: localProperties.getProperty("NUVIO_RELEASE_STORE_FILE")
 val releaseKeyAliasValue = env("NUVIO_RELEASE_KEY_ALIAS")
-    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_ALIAS", "nuviotv")
+    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_ALIAS").orEmpty()
 val releaseKeyPasswordValue = env("NUVIO_RELEASE_KEY_PASSWORD")
-    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_PASSWORD", "815787")
+    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_PASSWORD").orEmpty()
 val releaseStorePasswordValue = env("NUVIO_RELEASE_STORE_PASSWORD")
-    ?: localProperties.getProperty("NUVIO_RELEASE_STORE_PASSWORD", "815787")
+    ?: localProperties.getProperty("NUVIO_RELEASE_STORE_PASSWORD").orEmpty()
 
 android {
     namespace = "com.nuvio.tv"
@@ -102,7 +106,8 @@ android {
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        applicationId = "com.nuvio.tv"
+        // Keep fork releases installable beside the upstream Nuvio application.
+        applicationId = "com.manitux.nuviotv"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 24
         targetSdk = 36
@@ -144,12 +149,13 @@ android {
         buildConfigField("String", "UNIQUE_CONTRIBUTIONS_BASE_URL", "\"${localProperties.getProperty("UNIQUE_CONTRIBUTIONS_BASE_URL", "")}\"")
         buildConfigField("String", "PLAYBACK_REPORTS_BASE_URL", buildConfigString(localProperties.getProperty("PLAYBACK_REPORTS_BASE_URL", "")))
         buildConfigField("String", "PREMIUMIZE_CLIENT_ID", "\"${localProperties.getProperty("PREMIUMIZE_CLIENT_ID", "")}\"")
+        buildConfigField("String", "NUVIOTR_REPOS_URL", buildConfigString(localProperties.getProperty("NUVIOTR_REPOS_URL", "").trim()))
         buildConfigField("String", "SPONSOR_NAMES", buildConfigString(sponsorNames))
         buildConfigField("String", "SENTRY_DSN", buildConfigString(sentryDsn))
 
         // In-app updater (GitHub Releases)
-        buildConfigField("String", "GITHUB_OWNER", "\"NuvioMedia\"")
-        buildConfigField("String", "GITHUB_REPO", "\"NuvioTV\"")
+        buildConfigField("String", "GITHUB_OWNER", "\"manitux-app\"")
+        buildConfigField("String", "GITHUB_REPO", "\"NuvioTV-Test\"")
     }
 
     flavorDimensions += "distribution"
@@ -187,7 +193,7 @@ android {
         create("release") {
             keyAlias = releaseKeyAliasValue
             keyPassword = releaseKeyPasswordValue
-            storeFile = releaseStoreFilePath?.let(::file) ?: file("../nuviotv.jks")
+            storeFile = releaseStoreFilePath?.takeIf(String::isNotBlank)?.let(::file)
             storePassword = releaseStorePasswordValue
         }
     }
@@ -199,6 +205,7 @@ android {
             isMinifyEnabled = false
 
             buildConfigField("boolean", "IS_DEBUG_BUILD", "true")
+            buildConfigField("boolean", "REMOTE_PLUGIN_SYNC_ENABLED", remotePluginSyncEnabled.toString())
             buildConfigField("String", "SENTRY_ENVIRONMENT", buildConfigString("debug"))
 
             // Dev environment (from local.dev.properties)
@@ -218,6 +225,7 @@ android {
             buildConfigField("String", "UNIQUE_CONTRIBUTIONS_BASE_URL", "\"${devProperties.getProperty("UNIQUE_CONTRIBUTIONS_BASE_URL", localProperties.getProperty("UNIQUE_CONTRIBUTIONS_BASE_URL", ""))}\"")
             buildConfigField("String", "PLAYBACK_REPORTS_BASE_URL", buildConfigString(resolveProperty(devProperties, localProperties, "PLAYBACK_REPORTS_BASE_URL")))
             buildConfigField("String", "PREMIUMIZE_CLIENT_ID", "\"${devProperties.getProperty("PREMIUMIZE_CLIENT_ID", localProperties.getProperty("PREMIUMIZE_CLIENT_ID", ""))}\"")
+            buildConfigField("String", "NUVIOTR_REPOS_URL", buildConfigString(resolveProperty(devProperties, localProperties, "NUVIOTR_REPOS_URL")))
             buildConfigField("String", "SPONSOR_NAMES", buildConfigString(sponsorNames))
         }
         release {
@@ -234,6 +242,7 @@ android {
             }
 
             buildConfigField("boolean", "IS_DEBUG_BUILD", "false")
+            buildConfigField("boolean", "REMOTE_PLUGIN_SYNC_ENABLED", remotePluginSyncEnabled.toString())
             buildConfigField("String", "SENTRY_ENVIRONMENT", buildConfigString("production"))
 
             // Production environment (from local.properties)
@@ -336,7 +345,7 @@ android {
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
         val isPlaystore = variant.productFlavors.any { it.second == "playstore" }
-        variant.applicationId.set(if (isPlaystore) "com.nuvio.appdebug" else "com.nuviodebug.com")
+        variant.applicationId.set(if (isPlaystore) "com.nuvio.appdebug" else "com.manitux.nuviotest")
     }
 }
 

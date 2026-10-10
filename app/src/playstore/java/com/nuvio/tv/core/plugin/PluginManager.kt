@@ -29,6 +29,8 @@ class PluginManager {
     suspend fun addRepository(manifestUrl: String): Result<PluginRepository> =
         Result.failure(UnsupportedOperationException("Plugins are not available in this build."))
 
+    suspend fun getRepositoryProviderNames(manifestUrl: String): List<String> = emptyList()
+
     suspend fun removeRepository(repoId: String) = Unit
 
     suspend fun reconcileWithRemoteRepoUrls(

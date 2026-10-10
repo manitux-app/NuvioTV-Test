@@ -14,6 +14,7 @@ import com.nuvio.tv.data.remote.api.TrailerApi
 import com.nuvio.tv.data.remote.api.IntroDbApi
 import com.nuvio.tv.data.remote.api.ImdbTapframeApi
 import com.nuvio.tv.data.remote.api.MDBListApi
+import com.nuvio.tv.data.remote.api.NuvioTrApi
 import com.nuvio.tv.data.remote.api.ParentalGuideApi
 import com.nuvio.tv.data.remote.api.PlaybackIssueReportApi
 import com.nuvio.tv.data.remote.api.PremiumizeApi
@@ -334,6 +335,11 @@ object NetworkModule {
     @Singleton
     fun provideAddonApi(retrofit: Retrofit): AddonApi =
         retrofit.create(AddonApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideNuvioTrApi(retrofit: Retrofit): NuvioTrApi =
+        retrofit.create(NuvioTrApi::class.java)
 
     @Provides
     @Singleton

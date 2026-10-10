@@ -53,12 +53,20 @@ class CollectionsDataStore @Inject constructor(
 
     private val gson = Gson()
     private val collectionsKey = stringPreferencesKey("collections_json")
+    private val nuvioTrCollectionSourcesKey = stringPreferencesKey("nuviotr_collection_sources")
     private fun string(resId: Int, vararg args: Any): String = appContext.getString(resId, *args)
 
     val collections: Flow<List<Collection>> =
         profileManager.activeProfileId.flatMapLatest { pid ->
             factory.get(pid, FEATURE).data.map { prefs ->
                 parseCollections(prefs[collectionsKey])
+            }
+        }
+
+    val nuvioTrCollectionSources: Flow<Set<String>> =
+        profileManager.activeProfileId.flatMapLatest { pid ->
+            factory.get(pid, FEATURE).data.map { prefs ->
+                parseNuvioTrCollectionSources(prefs[nuvioTrCollectionSourcesKey]).keys
             }
         }
 
@@ -101,6 +109,28 @@ class CollectionsDataStore @Inject constructor(
                 prefs[collectionsKey] = gson.toJson(current.map { it.toSerializable() })
             }
         }
+    }
+
+    suspend fun saveNuvioTrCollectionSource(sourceId: String, collectionIds: Set<String>) {
+        store().edit { prefs ->
+            val sources = parseNuvioTrCollectionSources(prefs[nuvioTrCollectionSourcesKey]).toMutableMap()
+            sources[sourceId] = collectionIds
+            prefs[nuvioTrCollectionSourcesKey] = gson.toJson(sources)
+        }
+    }
+
+    suspend fun removeNuvioTrCollectionSource(sourceId: String): Set<String> {
+        var collectionIds = emptySet<String>()
+        store().edit { prefs ->
+            val sources = parseNuvioTrCollectionSources(prefs[nuvioTrCollectionSourcesKey]).toMutableMap()
+            collectionIds = sources.remove(sourceId).orEmpty()
+            if (sources.isEmpty()) {
+                prefs.remove(nuvioTrCollectionSourcesKey)
+            } else {
+                prefs[nuvioTrCollectionSourcesKey] = gson.toJson(sources)
+            }
+        }
+        return collectionIds
     }
 
     fun generateId(): String = UUID.randomUUID().toString()
@@ -193,6 +223,17 @@ class CollectionsDataStore @Inject constructor(
                 .values.toList()
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    private fun parseNuvioTrCollectionSources(json: String?): Map<String, Set<String>> {
+        if (json.isNullOrBlank()) return emptyMap()
+        return try {
+            val type = object : TypeToken<Map<String, List<String>>>() {}.type
+            gson.fromJson<Map<String, List<String>>>(json, type).orEmpty()
+                .mapValues { (_, ids) -> ids.toSet() }
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 

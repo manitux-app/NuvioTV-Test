@@ -814,7 +814,12 @@ internal fun SettingsActionRow(
     trailingIcon: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
     titleTrailingIcon: ImageVector? = null,
     titleTrailingIconTint: Color = NuvioTheme.colors.TextPrimary,
+    titleTrailingBadges: List<String> = emptyList(),
+    subtitleBadges: List<String> = emptyList(),
+    subtitleSuccessBadges: List<String> = emptyList(),
+    subtitleErrorBadges: List<String> = emptyList(),
     leadingIcon: ImageVector? = null,
+    leadingImageUrl: String? = null,
     @RawRes leadingRawIconRes: Int? = null,
     leadingArtworkSize: Dp = NuvioTheme.spacing.xl,
     valueColor: Color = NuvioTheme.colors.TextSecondary
@@ -851,7 +856,22 @@ internal fun SettingsActionRow(
                 .padding(horizontal = 18.dp, vertical = NuvioTheme.spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (leadingRawIconRes != null) {
+            if (!leadingImageUrl.isNullOrBlank()) {
+                Image(
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(LocalContext.current)
+                            .data(leadingImageUrl)
+                            .build()
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(leadingArtworkSize)
+                        .clip(RoundedCornerShape(NuvioTheme.spacing.sm))
+                        .alpha(contentAlpha),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.width(NuvioTheme.spacing.lg))
+            } else if (leadingRawIconRes != null) {
                 Image(
                     painter = rememberRawSvgPainter(leadingRawIconRes, leadingArtworkSize),
                     contentDescription = null,
@@ -875,6 +895,18 @@ internal fun SettingsActionRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
+                    titleTrailingBadges.filter { it.isNotBlank() }.forEach { badge ->
+                        Spacer(modifier = Modifier.width(NuvioTheme.spacing.sm))
+                        Text(
+                            text = badge,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = NuvioTheme.colors.Success,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(NuvioTheme.colors.Success.copy(alpha = 0.16f))
+                                .padding(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs)
+                        )
+                    }
                     if (titleTrailingIcon != null) {
                         Spacer(modifier = Modifier.width(NuvioTheme.spacing.sm))
                         Icon(
@@ -894,6 +926,49 @@ internal fun SettingsActionRow(
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                val blueBadges = subtitleBadges.filter { it.isNotBlank() }
+                val successBadges = subtitleSuccessBadges.filter { it.isNotBlank() }
+                val errorBadges = subtitleErrorBadges.filter { it.isNotBlank() }
+                (blueBadges + successBadges + errorBadges).takeIf { it.isNotEmpty() }?.let {
+                    Row(
+                        modifier = Modifier.padding(top = NuvioTheme.spacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)
+                    ) {
+                        blueBadges.forEach { badge ->
+                            Text(
+                                text = badge,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = NuvioTheme.colors.Info,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(NuvioTheme.colors.Info.copy(alpha = 0.16f))
+                                    .padding(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs)
+                            )
+                        }
+                        successBadges.forEach { badge ->
+                            Text(
+                                text = badge,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = NuvioTheme.colors.Success,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(NuvioTheme.colors.Success.copy(alpha = 0.16f))
+                                    .padding(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs)
+                            )
+                        }
+                        errorBadges.forEach { badge ->
+                            Text(
+                                text = badge,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = NuvioTheme.colors.Error,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(NuvioTheme.colors.Error.copy(alpha = 0.16f))
+                                    .padding(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs)
+                            )
+                        }
+                    }
                 }
             }
 

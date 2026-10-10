@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nuvio</string>
+    <string name="app_name">NuvioTest</string>
     <string name="tv_channel_continue_watching">İzlemeye Devam Et</string>
     <string name="type_movie">Film</string>
     <string name="type_movies">Filmler</string>
@@ -3382,4 +3382,36 @@
     <string name="autosync_toast_failed_no_reference">Eşitleme başarısız: Bu videoda karşılaştırılacak gömülü altyazı yok.</string>
     <string name="autosync_toast_failed_unsupported">Eşitleme başarısız: Otomatik Eşitleme bu altyazı formatını desteklemiyor.</string>
     <string name="autosync_label_synced">Otomatik eşitlendi</string>
+    <string name="nuviotr_title">NuvioTR</string>
+    <string name="nuviotr_catalogs">Kataloglar</string>
+    <string name="nuviotr_collections">Koleksiyonlar</string>
+    <string name="nuviotr_plugins">Uzantılar</string>
+    <string name="nuviotr_loading">NuvioTR depoları yükleniyor…</string>
+    <string name="nuviotr_install">Kur</string>
+    <string name="nuviotr_remove">Kaldır</string>
+    <string name="nuviotr_not_available_yet">Bu depo türü yakında kullanılabilir olacak.</string>
+    <string name="nuviotr_support_catalog">Katalog</string>
+    <string name="nuviotr_support_stream">Yayın</string>
+    <string name="nuviotr_support_search">Arama</string>
+    <string name="nuviotr_support_comments">Yorumlar</string>
+    <string name="nuviotr_catalogs_subtitle">Türkçe Kataloglar</string>
+    <string name="nuviotr_collections_subtitle">Türkçe Koleksiyonlar</string>
+    <string name="nuviotr_plugins_subtitle">Türkçe Uzantılar</string>
+    <string name="nuviotr_dependency_dialog_title">Bağımlılıklar ile beraber kurulsun mu?</string>
+    <string name="nuviotr_dependency_dialog_message">%1$s kurulurken şu uzantılar da kurulacak: %2$s.</string>
+    <string name="nuviotr_confirm">Tamam</string>
+    <string name="nuviotr_cancel">Vazgeç</string>
+    <string name="nuviotr_install_success">Başarıyla kuruldu.</string>
+    <string name="nuviotr_install_failed">Kurulum başarısız oldu.</string>
+    <string name="nuviotr_remove_success">Başarıyla kaldırıldı.</string>
+    <string name="nuviotr_install_dialog_title">Kurulsun mu?</string>
+    <string name="nuviotr_install_dialog_message">%1$s kurulsun mu?</string>
+    <string name="nuviotr_remove_dialog_title">Kaldırılsın mı?</string>
+    <string name="nuviotr_remove_dialog_message">%1$s kaldırılsın mı?</string>
+    <string name="nuviotr_origin_dialog_title">Dikkat!</string>
+    <string name="nuviotr_origin_dialog_message">Bu uzantının çalışmasında sorunlar olabilir!\nKaynak: %1$s\n%2$s kurulsun mu?</string>
+    <string name="nuviotr_plugin_providers">Sağlayıcılar</string>
+    <string name="nuviotr_search">Ara</string>
+    <string name="nuviotr_search_placeholder">Depolarda ara</string>
+    <string name="nuviotr_refresh">Yenile</string>
 </resources>

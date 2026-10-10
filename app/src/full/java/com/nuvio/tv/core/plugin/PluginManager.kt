@@ -940,6 +940,32 @@ class PluginManager @Inject constructor(
         return PluginCatalogPage(items, root.string("nextPageToken"))
     }
 
+    /** Returns the providers declared by a repository without installing it. */
+    suspend fun getRepositoryProviderNames(manifestUrl: String): List<String> = withContext(Dispatchers.IO) {
+        val sanitizedUrl = sanitizeScheme(manifestUrl).trimEnd('/')
+        val filename = sanitizedUrl.substringAfterLast("/")
+        val isExplicitJsonFile = filename.endsWith(".json", ignoreCase = true) &&
+            !filename.equals("manifest.json", ignoreCase = true)
+
+        if (isExplicitJsonFile) {
+            externalRepoParser.tryParse(sanitizedUrl)?.let { result ->
+                return@withContext result.plugins.map { it.name }.distinct()
+            }
+        }
+
+        fetchManifest(canonicalizeManifestUrl(sanitizedUrl))?.let { manifest ->
+            return@withContext manifest.scrapers.map { it.name }.distinct()
+        }
+
+        if (!isExplicitJsonFile) {
+            externalRepoParser.tryParse(sanitizedUrl)?.let { result ->
+                return@withContext result.plugins.map { it.name }.distinct()
+            }
+        }
+
+        emptyList()
+    }
+
     /** Executes an installed plugin's optional search capability. */
     suspend fun executeSearch(
         scraper: ScraperInfo,

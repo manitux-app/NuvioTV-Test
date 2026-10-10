@@ -32,9 +32,11 @@ import com.nuvio.tv.ui.screens.home.HomeScreen
 import com.nuvio.tv.ui.screens.addon.AddonManagerScreen
 import com.nuvio.tv.ui.screens.addon.CatalogOrderScreen
 import com.nuvio.tv.ui.screens.library.LibraryScreen
+import com.nuvio.tv.ui.screens.nuviotr.NuvioTrScreen
 import com.nuvio.tv.ui.screens.player.PlayerExitReason
 import com.nuvio.tv.ui.screens.player.PlayerScreen
 import com.nuvio.tv.ui.screens.player.PostPlayRecommendation
+import com.nuvio.tv.ui.screens.player.playerBackOpensCurrentEpisodeStreams
 import com.nuvio.tv.ui.screens.plugin.PluginScreen
 import com.nuvio.tv.ui.screens.search.DiscoverScreen
 import com.nuvio.tv.ui.screens.search.SearchScreen
@@ -946,7 +948,7 @@ private fun PlaybackNavHost(
                                 navController.popBackStack()
                             }
                         }
-                        episodeChangedInPlace && !autoPlayEnabled -> {
+                        playerBackOpensCurrentEpisodeStreams(episodeChangedInPlace, autoPlayEnabled) -> {
                             // manual stream switch to next episode — go to Stream of current episode
                             val videoId = currentVideoId ?: args?.getString("videoId").orEmpty()
                             if (videoId.isNotBlank() && contentType.isNotBlank()) {
@@ -1243,6 +1245,10 @@ private fun PlaybackNavHost(
                     navController.navigate(Screen.LicensesAttributions.route)
                 }
             )
+        }
+
+        composable(Screen.NuvioTr.route) {
+            NuvioTrScreen(onBackPress = { navController.popBackStack() })
         }
 
         composable(Screen.ManageProfiles.route) {
