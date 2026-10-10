@@ -523,10 +523,19 @@ internal fun HomeViewModel.loadCatalogPipeline(
 
 internal fun HomeViewModel.loadMoreCatalogItemsPipeline(catalogId: String, addonId: String, type: String) {
     val addonKey = catalogKey(addonId = addonId, type = type, catalogId = catalogId)
-    val currentRow = readCatalogRow(addonKey) ?: snapshotCatalogState().second.values.firstOrNull { row ->
-        row.addonId == addonId && row.catalogId == catalogId && row.apiType == type
+    // Add-on rows are stored with [catalogKey], while plugin rows use their stable key.
+    // Retain the map key that located the row: a CatalogRow.stableKey() is not the
+    // storage key of an add-on row, so using it here silently drops a fetched page.
+    val directRow = readCatalogRow(addonKey)
+    val matchedEntry = if (directRow == null) {
+        snapshotCatalogState().second.entries.firstOrNull { (_, row) ->
+            row.addonId == addonId && row.catalogId == catalogId && row.apiType == type
+        }
+    } else {
+        null
     }
-    val key = currentRow?.stableKey() ?: addonKey
+    val currentRow = directRow ?: matchedEntry?.value
+    val key = matchedEntry?.key ?: addonKey
 
     if (currentRow == null) {
         return
@@ -755,9 +764,12 @@ internal suspend fun HomeViewModel.updateCatalogRowsPipeline() {
         }
 
         val computedDisplayRows = orderedRows.map { row ->
-            val shouldKeepFullRowInModern = currentLayout == HomeLayout.MODERN
+            // Grid has its own bounded section presentation. Both carousel
+            // layouts must retain every fetched page so their rails can keep
+            // scrolling past the initial batch.
+            val shouldKeepFullRow = currentLayout != HomeLayout.GRID
             val gridTruncateLimit = 24
-            if (row.items.size > gridTruncateLimit && !shouldKeepFullRowInModern) {
+            if (row.items.size > gridTruncateLimit && !shouldKeepFullRow) {
                 val key = row.legacyKey()
                 val cachedEntry = getTruncatedRowCacheEntry(key)
                 if (cachedEntry != null && cachedEntry.sourceRow === row) {

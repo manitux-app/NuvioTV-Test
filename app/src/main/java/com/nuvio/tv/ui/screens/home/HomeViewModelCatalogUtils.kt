@@ -223,6 +223,25 @@ internal fun HomeViewModel.removeTruncatedRowCacheEntry(key: String) {
 }
 
 internal fun HomeViewModel.rebuildCatalogOrder(addons: List<Addon>) {
+    // Plugin catalog rows use opaque, plugin-specific keys. Layout preferences
+    // also emit when unrelated settings change; rebuilding from add-on manifests
+    // in that case used to erase the selected plugin's rows from the order.
+    val selectedSourceId = _uiState.value.selectedCatalogSourceId
+    val isPluginCatalogSelected = selectedSourceId?.startsWith("plugin:") == true ||
+        (selectedSourceId != null && externalCatalogRequestsCache.containsKey(selectedSourceId))
+    if (isPluginCatalogSelected) {
+        val pluginOrder = synchronized(catalogStateLock) {
+            catalogOrder.filter { key -> catalogsMap[key]?.pluginSource != null }
+        }
+        if (pluginOrder.isNotEmpty()) {
+            synchronized(catalogStateLock) {
+                catalogOrder.clear()
+                catalogOrder.addAll(pluginOrder)
+            }
+            return
+        }
+    }
+
     val defaultOrder = buildDefaultCatalogOrder(addons)
     val collectionKeys = collectionsCache.map { "collection_${it.id}" }
     val allAvailable = (defaultOrder + collectionKeys).toSet()

@@ -31,6 +31,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -44,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -86,6 +88,8 @@ import com.nuvio.tv.ui.components.PosterCardDefaults
 import com.nuvio.tv.ui.components.PosterCardStyle
 import androidx.compose.ui.res.stringResource
 import com.nuvio.tv.R
+import com.nuvio.tv.LocalHomeSourceMenuFocusRequester
+import com.nuvio.tv.LocalContentFocusRequester
 import com.nuvio.tv.core.tracking.LOCAL_LIBRARY_LIST_KEY
 import com.nuvio.tv.core.tracking.supportsMembershipFor
 import com.nuvio.tv.data.local.StartupAuthNotice
@@ -296,9 +300,11 @@ fun HomeScreen(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    val sourceMenuFocusRequester = remember { FocusRequester() }
+    CompositionLocalProvider(LocalHomeSourceMenuFocusRequester provides sourceMenuFocusRequester) {
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
         when {
             !uiState.layoutPreferencesReady -> {
                 Unit
@@ -498,6 +504,7 @@ fun HomeScreen(
         }
         HomeSourceMenus(
             uiState = uiState,
+            catalogFocusRequester = sourceMenuFocusRequester,
             onCatalogSelected = viewModel::selectHomeCatalogSource,
             onStreamSelected = viewModel::selectHomeStreamSource,
             onCatalogRepositoryFilterSelected = viewModel::selectHomeCatalogRepositoryFilter,
@@ -508,6 +515,7 @@ fun HomeScreen(
             },
             modifier = Modifier.align(Alignment.TopEnd).padding(24.dp)
         )
+        }
     }
 
     val selectedPoster = posterOptionsTarget
@@ -589,6 +597,7 @@ fun HomeScreen(
 @OptIn(ExperimentalTvMaterial3Api::class)
 private fun HomeSourceMenus(
     uiState: HomeUiState,
+    catalogFocusRequester: FocusRequester,
     onCatalogSelected: (String) -> Unit,
     onStreamSelected: (String) -> Unit,
     onCatalogRepositoryFilterSelected: (String) -> Unit,
@@ -596,6 +605,7 @@ private fun HomeSourceMenus(
     onCatalogSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val contentFocusRequester = LocalContentFocusRequester.current
     var catalogExpanded by remember { mutableStateOf(false) }
     var streamExpanded by remember { mutableStateOf(false) }
     var hasTopBarFocus by remember { mutableStateOf(false) }
@@ -606,7 +616,6 @@ private fun HomeSourceMenus(
     )
     var catalogFocusRequest by remember { mutableStateOf(0) }
     var streamFocusRequest by remember { mutableStateOf(0) }
-    val catalogFocusRequester = remember { FocusRequester() }
     val streamFocusRequester = remember { FocusRequester() }
     val streamSelectionResolved =
         uiState.selectedStreamRepositoryFilterId != null &&
@@ -661,6 +670,7 @@ private fun HomeSourceMenus(
                 allOptions = uiState.catalogSources,
                 options = uiState.catalogSources.filterByCatalogRepository(uiState.selectedCatalogRepositoryFilterId),
                 focusRequester = catalogFocusRequester,
+                downFocusRequester = contentFocusRequester,
                 onExpandedChange = { catalogExpanded = it },
                 onSelect = { source -> onCatalogSelected(source.id); catalogExpanded = false }
             )
@@ -718,6 +728,7 @@ private fun HomeSourceMenus(
                     allOptions = uiState.streamSources,
                     options = uiState.streamSources.filterByRepository(uiState.selectedStreamRepositoryFilterId),
                     focusRequester = streamFocusRequester,
+                    downFocusRequester = contentFocusRequester,
                     onExpandedChange = { streamExpanded = it },
                     onSelect = { source -> onStreamSelected(source.id); streamExpanded = false }
                 )
@@ -926,6 +937,7 @@ private fun HomeSourceDropdownPicker(
     allOptions: List<HomeMenuSource>,
     options: List<HomeMenuSource>,
     focusRequester: FocusRequester,
+    downFocusRequester: FocusRequester,
     onExpandedChange: (Boolean) -> Unit,
     onSelect: (HomeMenuSource) -> Unit
 ) {
@@ -945,6 +957,7 @@ private fun HomeSourceDropdownPicker(
             modifier = Modifier
                 .fillMaxSize()
                 .focusRequester(focusRequester)
+                .focusProperties { down = downFocusRequester }
                 .onSizeChanged { anchorSize = it }
                 .onFocusChanged { isFocused = it.isFocused },
             shape = CardDefaults.shape(shape = RoundedCornerShape(14.dp)),
@@ -1099,6 +1112,11 @@ private fun ClassicHomeRoute(
         },
         onFocusedRowKeyChanged = remember(viewModel) {
             { key: String? -> viewModel.setLiveFocusedRowKey(key) }
+        },
+        onLoadMoreCatalog = remember(viewModel) {
+            { catalogId: String, addonId: String, type: String ->
+                viewModel.onEvent(HomeEvent.OnLoadMoreCatalog(catalogId, addonId, type))
+            }
         },
         onRequestLazyCatalogLoad = remember(viewModel) {
             { catalogKey: String -> viewModel.requestLazyCatalogLoad(catalogKey) }

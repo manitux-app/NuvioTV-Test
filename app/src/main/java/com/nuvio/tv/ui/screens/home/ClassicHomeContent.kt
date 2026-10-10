@@ -109,6 +109,7 @@ fun ClassicHomeContent(
     onSaveFocusState: (Int, Int, String?, Map<String, String>, Map<String, Int>, Map<String, String>, Int, Int) -> Unit,
     onFocusedRowKeyChanged: (String?) -> Unit = {},
     scrollToTopTrigger: Int = 0,
+    onLoadMoreCatalog: (String, String, String) -> Unit = { _, _, _ -> },
     onRequestLazyCatalogLoad: (String) -> Unit = {}
 ) {
     val defaultBringIntoViewSpec = LocalBringIntoViewSpec.current
@@ -855,6 +856,13 @@ fun ClassicHomeContent(
                         },
                         onSeeAll = {
                             onNavigateToCatalogSeeAll(
+                                catalogRow.catalogId,
+                                catalogRow.addonId,
+                                catalogRow.apiType
+                            )
+                        },
+                        onLoadMore = {
+                            onLoadMoreCatalog(
                                 catalogRow.catalogId,
                                 catalogRow.addonId,
                                 catalogRow.apiType

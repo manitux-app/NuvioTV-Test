@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -67,6 +68,7 @@ import coil3.request.ImageRequest
 import coil3.request.colorSpace
 import coil3.request.crossfade
 import com.nuvio.tv.domain.model.MetaPreview
+import com.nuvio.tv.LocalHomeSourceMenuFocusRequester
 import com.nuvio.tv.ui.util.contentTextDirection
 import com.nuvio.tv.ui.util.formatHeroRuntime
 import com.nuvio.tv.ui.util.LocalRecompositionHighlighterEnabled
@@ -101,6 +103,7 @@ fun HeroCarousel(
     var activeIndex by remember { mutableIntStateOf(initialActiveIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))) }
     var isFocused by remember { mutableStateOf(false) }
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val homeSourceMenuFocusRequester = LocalHomeSourceMenuFocusRequester.current
 
     LaunchedEffect(activeIndex, isFocused) {
         if (!isFocused) return@LaunchedEffect
@@ -133,6 +136,7 @@ fun HeroCarousel(
             )
             .height(400.dp)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .focusProperties { up = homeSourceMenuFocusRequester }
             .onFocusChanged {
                 isFocused = it.hasFocus || it.isFocused
             }

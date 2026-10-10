@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -76,6 +77,7 @@ import com.nuvio.tv.ui.util.formatAddonTypeLabel
 import com.nuvio.tv.ui.util.localizedContentType
 import com.nuvio.tv.ui.util.contentTextDirection
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -112,6 +114,7 @@ fun CatalogRowSection(
      *  the same items. */
     focusResetToken: String? = null,
     onItemFocused: (itemIndex: Int) -> Unit = {},
+    onLoadMore: () -> Unit = {},
     rowFocusRequester: FocusRequester? = null,
     /** FocusRequester that will be attached to the first-or-last-focused card.
      *  Wide elements above (CW, collections) can point their D-pad down here. */
@@ -221,6 +224,36 @@ fun CatalogRowSection(
     val latestOnItemLongPress by rememberUpdatedState(onItemLongPress)
     val latestOnItemFocused by rememberUpdatedState(onItemFocused)
     val latestOnRequestTrailerPreview by rememberUpdatedState(onRequestTrailerPreview)
+    val latestOnLoadMore by rememberUpdatedState(onLoadMore)
+    val currentCatalogRow by rememberUpdatedState(catalogRow)
+    var lastLoadMoreRequestedItemCount by remember(catalogRowKey) { mutableIntStateOf(-1) }
+
+    LaunchedEffect(catalogRowKey, listState) {
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val total = layoutInfo.totalItemsCount
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            lastVisible to total
+        }
+            .distinctUntilChanged()
+            .collect { (lastVisible, total) ->
+                if (total <= 0) return@collect
+                val row = currentCatalogRow
+                val isNearEnd = lastVisible >= total - 4
+                if (!isNearEnd) {
+                    lastLoadMoreRequestedItemCount = -1
+                    return@collect
+                }
+                if ((row.supportsSkip || row.pluginSource != null) &&
+                    row.hasMore &&
+                    !row.isLoading &&
+                    lastLoadMoreRequestedItemCount != total
+                ) {
+                    lastLoadMoreRequestedItemCount = total
+                    latestOnLoadMore()
+                }
+            }
+    }
 
     LaunchedEffect(catalogRow.items) {
         val validKeys = catalogRow.items.mapIndexedTo(mutableSetOf()) { index, item ->

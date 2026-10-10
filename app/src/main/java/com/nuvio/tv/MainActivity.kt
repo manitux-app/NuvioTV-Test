@@ -215,6 +215,7 @@ import kotlinx.coroutines.launch
 
 val LocalSidebarExpanded = compositionLocalOf { false }
 val LocalContentFocusRequester = compositionLocalOf { FocusRequester.Default }
+val LocalHomeSourceMenuFocusRequester = compositionLocalOf { FocusRequester.Default }
 
 data class SplashBackground(
     val profileColorHex: String? = null,
