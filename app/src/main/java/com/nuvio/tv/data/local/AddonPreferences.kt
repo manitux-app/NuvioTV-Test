@@ -242,12 +242,14 @@ class AddonPreferences @Inject constructor(
         // https://v3-cinemeta.strem.io/manifest.json
         "https://opensubtitles-v3.strem.io",
         "https://catalog.nuvio.tv/{\"language\":\"tr-TR\",\"region\":\"TR\"}",
-        "https://katalog.izlelan.com/manifest.json",
+       //"https://katalog.izlelan.com/manifest.json",
     )
 
-    internal fun getDefaultPlugins(): Set<String>? = setOf(
-        "https://raw.githubusercontent.com/manitux-app/nuvio-plugins/refs/heads/main/manifest.json",
-        "https://izlelan.com/manifest.json",
-        "https://raw.githubusercontent.com/patr0nq/nuvioaddons/refs/heads/main/manifest.json"
-    )
+    internal fun getDefaultPlugins(): Set<String>? = null
+
+    // internal fun getDefaultPlugins(): Set<String>? = setOf(
+    //     "https://raw.githubusercontent.com/manitux-app/nuvio-test-plugins/refs/heads/main/manifest.json",
+    //     "https://izlelan.com/manifest.json",
+    //     "https://raw.githubusercontent.com/patr0nq/nuvioaddons/refs/heads/main/manifest.json"
+    // )
 }

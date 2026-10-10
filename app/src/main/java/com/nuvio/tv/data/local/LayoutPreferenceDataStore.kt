@@ -176,7 +176,7 @@ class LayoutPreferenceDataStore @Inject constructor(
     }
 
     val hasChosenLayout: Flow<Boolean> = profileFlow { prefs ->
-        prefs[hasChosenKey] ?: false
+        prefs[hasChosenKey] ?: true
     }
 
     val heroCatalogSelections: Flow<List<String>> = profileFlow { prefs ->
@@ -280,7 +280,7 @@ class LayoutPreferenceDataStore @Inject constructor(
     }
 
     val focusedPosterBackdropExpandEnabled: Flow<Boolean> = profileFlow { prefs ->
-        prefs[focusedPosterBackdropExpandEnabledKey] ?: true
+        prefs[focusedPosterBackdropExpandEnabledKey] ?: false
     }
 
     val focusedPosterBackdropExpandDelaySeconds: Flow<Int> = profileFlow { prefs ->

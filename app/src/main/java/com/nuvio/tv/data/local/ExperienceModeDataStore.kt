@@ -36,11 +36,11 @@ class ExperienceModeDataStore @Inject constructor(
     val mode: Flow<ExperienceMode?> = profileFlow { prefs ->
         prefs[modeKey]?.let { value ->
             runCatching { ExperienceMode.valueOf(value) }.getOrNull()
-        }
+        } ?: ExperienceMode.ESSENTIAL
     }
 
     val addonSetupSkipped: Flow<Boolean> = profileFlow { prefs ->
-        prefs[addonSetupSkippedKey] ?: false
+        prefs[addonSetupSkippedKey] ?: true
     }
 
     suspend fun setMode(mode: ExperienceMode) {
