@@ -31,6 +31,7 @@ internal fun ContentDiscoverySettingsContent(
     onNavigateToAddons: () -> Unit,
     onNavigateToPlugins: () -> Unit,
     showPlugins: Boolean,
+    showMediaServers: Boolean,
     initialFocusRequester: FocusRequester?
 ) {
     var serverPage by rememberSaveable { mutableStateOf<String?>(null) }
@@ -60,6 +61,7 @@ internal fun ContentDiscoverySettingsContent(
             onNavigateToPlugins = onNavigateToPlugins,
             onNavigateToServers = { serverPage = SERVERS_PAGE },
             showPlugins = showPlugins,
+            showMediaServers = showMediaServers,
             initialFocusRequester = initialFocusRequester,
             serversFocusRequester = hubServersRequester
         )
@@ -82,6 +84,7 @@ private fun ContentDiscoveryHub(
     onNavigateToPlugins: () -> Unit,
     onNavigateToServers: () -> Unit,
     showPlugins: Boolean,
+    showMediaServers: Boolean,
     initialFocusRequester: FocusRequester?,
     serversFocusRequester: FocusRequester
 ) {
@@ -105,13 +108,15 @@ private fun ContentDiscoveryHub(
                     Modifier
                 }
             )
-            SettingsActionRow(
-                title = stringResource(R.string.settings_media_servers),
-                subtitle = stringResource(R.string.settings_media_servers_subtitle),
-                onClick = onNavigateToServers,
-                leadingIcon = Icons.Default.Dns,
-                modifier = Modifier.focusRequester(serversFocusRequester)
-            )
+            if (showMediaServers) {
+                SettingsActionRow(
+                    title = stringResource(R.string.settings_media_servers),
+                    subtitle = stringResource(R.string.settings_media_servers_subtitle),
+                    onClick = onNavigateToServers,
+                    leadingIcon = Icons.Default.Dns,
+                    modifier = Modifier.focusRequester(serversFocusRequester)
+                )
+            }
             if (showPlugins) {
                 SettingsActionRow(
                     title = stringResource(R.string.plugin_title),

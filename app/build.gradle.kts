@@ -62,6 +62,9 @@ val doviEnableRealLink = parseBooleanProperty(
 val remotePluginSyncEnabled = parseBooleanProperty(
     resolveProperty(devProperties, localProperties, "REMOTE_PLUGIN_SYNC_ENABLED", "false")
 )
+val mediaServersMenuEnabled = parseBooleanProperty(
+    resolveProperty(devProperties, localProperties, "MEDIA_SERVERS_MENU_ENABLED", "true")
+)
 val doviStaticLibPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_STATIC_LIB")
 val doviIncludeDirPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_INCLUDE_DIR")
 val doviPrebuiltRootPath = resolveProperty(devProperties, localProperties, "DOVI_LIBDOVI_PREBUILT_ROOT")
@@ -131,6 +134,7 @@ android {
         buildConfigField("String", "DEVICE_LOGIN_WEB_BASE_URL", "\"${localProperties.getProperty("DEVICE_LOGIN_WEB_BASE_URL", "https://nuvio.tv/link")}\"")
         buildConfigField("boolean", "DOVI_NATIVE_ENABLED", enableDoviNative.toString())
         buildConfigField("boolean", "DOVI_EXTRACTOR_HOOK_READY", doviExtractorHookReady.toString())
+        buildConfigField("boolean", "MEDIA_SERVERS_MENU_ENABLED", mediaServersMenuEnabled.toString())
         if (enableDoviNative) {
             externalNativeBuild {
                 cmake {

@@ -897,6 +897,7 @@ private fun SettingsDetailPane(
             onNavigateToAddons = onNavigateToAddons,
             onNavigateToPlugins = onNavigateToPlugins,
             showPlugins = AppFeaturePolicy.pluginsEnabled && !isEssentialMode,
+            showMediaServers = BuildConfig.MEDIA_SERVERS_MENU_ENABLED,
             initialFocusRequester = if (allowDetailAutofocus) {
                 contentFocusRequesters[SettingsCategory.CONTENT_DISCOVERY]
             } else {
