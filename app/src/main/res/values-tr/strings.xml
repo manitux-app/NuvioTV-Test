@@ -404,6 +404,7 @@
     <string name="about_title">Hakkında</string>
     <string name="about_subtitle">Uygulama bilgileri, güncellemeler ve yasal bağlantılar</string>
     <string name="about_made_with_love">Tapframe ve arkadaşları tarafından ❤️ ile yapıldı</string>
+    <string name="about_customized_by_manitux">manitux tarafından düzenlendi</string>
     <string name="about_version">Sürüm %1$s</string>
     <string name="about_update_banner_title">Otomatik güncelleme bildirimi</string>
     <string name="about_update_banner_subtitle">Yeni sürüm çıktığında bildirim göster</string>

@@ -401,6 +401,7 @@
     <string name="about_title">About</string>
     <string name="about_subtitle">App information, updates, and legal links</string>
     <string name="about_made_with_love">Made with ❤️ by Tapframe and friends</string>
+    <string name="about_customized_by_manitux">Customized by manitux</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_update_banner_title">Automatic update banner</string>
     <string name="about_update_banner_subtitle">Show a banner when a new version is available</string>
