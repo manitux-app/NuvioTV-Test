@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +37,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -183,9 +186,17 @@ fun NuvioTrScreen(
                 state.error != null -> Text(state.error ?: "")
                 section == NuvioTrSection.Catalogs -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(filteredCatalogs, key = { it.id }) { catalog ->
-                        CatalogRow(catalog, dependencyNames, state.installedManifestUrls, state.installingId == catalog.id, { selected ->
-                            pendingCatalog = selected
-                        }, viewModel::removeCatalog)
+                        CatalogRow(
+                            catalog = catalog,
+                            dependencyNames = dependencyNames,
+                            installedUrls = state.installedManifestUrls,
+                            installing = state.installingId == catalog.id,
+                            contents = state.catalogContents[catalog.id].orEmpty(),
+                            isLoadingContents = catalog.id in state.loadingCatalogContents,
+                            onInstall = { selected -> pendingCatalog = selected },
+                            onLoadContents = viewModel::loadCatalogContents,
+                            onRemove = viewModel::removeCatalog
+                        )
                     }
                 }
                 section == NuvioTrSection.Collections -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -194,7 +205,10 @@ fun NuvioTrScreen(
                             collection = collection,
                             installed = collection.id in state.installedCollectionIds,
                             installing = state.installingId == collection.id,
+                            contents = state.collectionContents[collection.id].orEmpty(),
+                            isLoadingContents = collection.id in state.loadingCollectionContents,
                             onInstall = viewModel::installCollection,
+                            onLoadContents = viewModel::loadCollectionContents,
                             onRemove = viewModel::removeCollection
                         )
                     }
@@ -206,6 +220,7 @@ fun NuvioTrScreen(
                             installed = plugin.manifestUrl.trimEnd('/') in state.installedPluginUrls,
                             installing = state.installingId == plugin.id,
                             providers = state.pluginProviders[plugin.id].orEmpty(),
+                            isLoadingProviders = plugin.id in state.loadingPluginProviders,
                             onInstall = viewModel::installPlugin,
                             onLoadProviders = viewModel::loadPluginProviders,
                             onRemove = viewModel::removePlugin
@@ -282,12 +297,15 @@ private fun PluginRowWithBadges(
     installed: Boolean,
     installing: Boolean,
     providers: List<String>,
+    isLoadingProviders: Boolean,
     onInstall: (String, String) -> Unit,
     onLoadProviders: (String, String) -> Unit,
     onRemove: (String) -> Unit
 ) {
     var showConfirmation by remember { mutableStateOf(false) }
     var showRemovalConfirmation by remember { mutableStateOf(false) }
+    var showContents by remember { mutableStateOf(false) }
+    val contentsFocusRequester = remember { FocusRequester() }
     val badges = listOfNotNull(
         if (plugin.supports.catalog) stringResource(R.string.nuviotr_support_catalog) else null,
         if (plugin.supports.stream) stringResource(R.string.nuviotr_support_stream) else null,
@@ -298,26 +316,41 @@ private fun PluginRowWithBadges(
         title = plugin.name,
         subtitle = listOf(plugin.authors.joinToString(), plugin.description).filter { it.isNotBlank() }.joinToString("\n"),
         value = null,
-        onClick = {
-            if (installed) {
-                showRemovalConfirmation = true
-            } else {
-                onLoadProviders(plugin.id, plugin.manifestUrl)
-                showConfirmation = true
-            }
-        },
+        onClick = {},
         enabled = !installing,
         leadingIcon = Icons.Default.Extension,
         leadingImageUrl = plugin.iconUrl,
         trailingIcon = if (installed) Icons.Default.Delete else Icons.Default.Download,
         subtitleSuccessBadges = badges,
-        subtitleErrorBadges = plugin.origin?.takeIf { it.isNotBlank() }?.let(::listOf).orEmpty()
+        subtitleErrorBadges = plugin.origin?.takeIf { it.isNotBlank() }?.let(::listOf).orEmpty(),
+        inlineActions = { actionsVisible ->
+            LaunchedEffect(actionsVisible) {
+                if (actionsVisible) runCatching { contentsFocusRequester.requestFocus() }
+            }
+            NuvioTrRepositoryInlineActions(
+                installLabel = stringResource(if (installed) R.string.nuviotr_remove else R.string.nuviotr_install),
+                initialFocusRequester = contentsFocusRequester,
+                onContents = {
+                    onLoadProviders(plugin.id, plugin.manifestUrl)
+                    showContents = true
+                },
+                onInstallOrRemove = {
+                    if (installed) showRemovalConfirmation = true else showConfirmation = true
+                }
+            )
+        }
     )
+    if (showContents) {
+        NuvioTrRepositoryContentsDialog(
+            contents = providers,
+            isLoading = isLoadingProviders,
+            onDismiss = { showContents = false }
+        )
+    }
     if (showConfirmation) {
         NuvioTrInstallDialog(
             name = plugin.name,
             origin = plugin.origin,
-            providers = providers,
             onDismiss = { showConfirmation = false },
             onConfirm = { onInstall(plugin.id, plugin.manifestUrl); showConfirmation = false }
         )
@@ -337,11 +370,16 @@ private fun CollectionRow(
     collection: NuvioTrCollection,
     installed: Boolean,
     installing: Boolean,
+    contents: List<String>,
+    isLoadingContents: Boolean,
     onInstall: (String, String) -> Unit,
+    onLoadContents: (String, String) -> Unit,
     onRemove: (String) -> Unit
 ) {
     var showConfirmation by remember { mutableStateOf(false) }
     var showRemovalConfirmation by remember { mutableStateOf(false) }
+    var showContents by remember { mutableStateOf(false) }
+    val contentsFocusRequester = remember { FocusRequester() }
     NuvioTrRow(
         name = collection.name,
         authors = collection.authors,
@@ -349,9 +387,31 @@ private fun CollectionRow(
         iconUrl = collection.iconUrl,
         installed = installed,
         installing = installing,
-        onInstall = { showConfirmation = true },
-        onRemove = { showRemovalConfirmation = true }
+        onClick = {},
+        inlineActions = { actionsVisible ->
+            LaunchedEffect(actionsVisible) {
+                if (actionsVisible) runCatching { contentsFocusRequester.requestFocus() }
+            }
+            NuvioTrRepositoryInlineActions(
+                installLabel = stringResource(if (installed) R.string.nuviotr_remove else R.string.nuviotr_install),
+                initialFocusRequester = contentsFocusRequester,
+                onContents = {
+                    onLoadContents(collection.id, collection.collectionUrl)
+                    showContents = true
+                },
+                onInstallOrRemove = {
+                    if (installed) showRemovalConfirmation = true else showConfirmation = true
+                }
+            )
+        }
     )
+    if (showContents) {
+        NuvioTrRepositoryContentsDialog(
+            contents = contents,
+            isLoading = isLoadingContents,
+            onDismiss = { showContents = false }
+        )
+    }
     if (showConfirmation) {
         NuvioTrInstallDialog(
             name = collection.name,
@@ -373,7 +433,6 @@ private fun CollectionRow(
 private fun NuvioTrInstallDialog(
     name: String,
     origin: String? = null,
-    providers: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -382,36 +441,11 @@ private fun NuvioTrInstallDialog(
     } else {
         stringResource(R.string.nuviotr_origin_dialog_message, origin, name)
     }
-    val providerText = providers.distinct().joinToString(separator = " · ")
     NuvioDialog(
         onDismiss = onDismiss,
         title = stringResource(if (origin.isNullOrBlank()) R.string.nuviotr_install_dialog_title else R.string.nuviotr_origin_dialog_title),
         subtitle = message
     ) {
-        if (providers.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.nuviotr_plugin_providers),
-                style = MaterialTheme.typography.titleSmall,
-                color = NuvioTheme.colors.TextPrimary
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = NuvioTheme.colors.Surface,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(NuvioTheme.radii.md)
-                    )
-            ) {
-                Text(
-                    text = providerText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = NuvioTheme.colors.TextSecondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(NuvioTheme.spacing.md)
-                )
-            }
-        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onDismiss) { Text(stringResource(R.string.nuviotr_cancel)) }
             Button(onClick = onConfirm) { Text(stringResource(R.string.nuviotr_confirm)) }
@@ -421,24 +455,106 @@ private fun NuvioTrInstallDialog(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun PluginRow(plugin: NuvioTrPlugin, installing: Boolean, onInstall: (String, String) -> Unit, onRemove: (String) -> Unit) {
-    val supports = listOfNotNull(if (plugin.supports.catalog) "Catalog" else null, if (plugin.supports.search) "Search" else null, if (plugin.supports.comments) "Comments" else null).joinToString(" · ")
-    NuvioTrRow(plugin.name, plugin.authors, listOf(plugin.description, supports).filter { it.isNotBlank() }.joinToString("\n"), plugin.iconUrl, false, installing, { onInstall(plugin.id, plugin.manifestUrl) }, { onRemove(plugin.manifestUrl) })
+private fun NuvioTrRepositoryContentsDialog(
+    contents: List<String>,
+    isLoading: Boolean = false,
+    onDismiss: () -> Unit
+) {
+    val distinctContents = contents.distinct()
+    val firstContentFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(isLoading, distinctContents) {
+        if (!isLoading && distinctContents.isNotEmpty()) {
+            runCatching { firstContentFocusRequester.requestFocus() }
+        }
+    }
+    NuvioDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.nuviotr_repository_contents)
+    ) {
+        if (isLoading) {
+            Text(
+                text = stringResource(R.string.nuviotr_loading),
+                style = MaterialTheme.typography.bodyMedium,
+                color = NuvioTheme.colors.TextSecondary
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)
+            ) {
+                items(distinctContents) { content ->
+                    Button(
+                        onClick = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (content == distinctContents.firstOrNull()) {
+                                    Modifier.focusRequester(firstContentFocusRequester)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    ) {
+                        Text(
+                            text = content,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun NuvioTrRow(name: String, authors: List<String>, description: String, iconUrl: String, installed: Boolean, installing: Boolean, onInstall: () -> Unit, onRemove: () -> Unit) {
+private fun NuvioTrRow(
+    name: String,
+    authors: List<String>,
+    description: String,
+    iconUrl: String,
+    installed: Boolean,
+    installing: Boolean,
+    onClick: () -> Unit,
+    inlineActions: @Composable androidx.compose.foundation.layout.ColumnScope.(Boolean) -> Unit = {}
+) {
     SettingsActionRow(
         title = name,
         subtitle = listOf(authors.joinToString(), description).filter { it.isNotBlank() }.joinToString("\n"),
         value = null,
-        onClick = { if (installed) onRemove() else onInstall() },
+        onClick = onClick,
         enabled = !installing,
         leadingIcon = Icons.Default.Extension,
         leadingImageUrl = iconUrl,
-        trailingIcon = if (installed) Icons.Default.Delete else Icons.Default.Download
+        trailingIcon = if (installed) Icons.Default.Delete else Icons.Default.Download,
+        inlineActions = inlineActions
     )
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun NuvioTrRepositoryInlineActions(
+    installLabel: String,
+    initialFocusRequester: FocusRequester,
+    onContents: () -> Unit,
+    onInstallOrRemove: () -> Unit
+) {
+    Row(
+        modifier = Modifier.padding(top = NuvioTheme.spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)
+    ) {
+        Button(
+            onClick = onContents,
+            modifier = Modifier.focusRequester(initialFocusRequester)
+        ) {
+            Text(stringResource(R.string.nuviotr_repository_contents))
+        }
+        Button(onClick = onInstallOrRemove) {
+            Text(installLabel)
+        }
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -463,24 +579,52 @@ private fun CatalogRow(
     dependencyNames: Map<String, String>,
     installedUrls: Set<String>,
     installing: Boolean,
+    contents: List<String>,
+    isLoadingContents: Boolean,
     onInstall: (NuvioTrCatalog) -> Unit,
+    onLoadContents: (String, String) -> Unit,
     onRemove: (String) -> Unit
 ) {
     val installed = catalog.manifestUrl.removeSuffix("/manifest.json").trimEnd('/') in installedUrls
     var showRemovalConfirmation by remember { mutableStateOf(false) }
+    var showContents by remember { mutableStateOf(false) }
+    val contentsFocusRequester = remember { FocusRequester() }
     SettingsActionRow(
         title = catalog.name,
         subtitle = listOf(catalog.authors.joinToString(), catalog.description)
             .filter { it.isNotBlank() }
             .joinToString("\n"),
         value = null,
-        onClick = { if (installed) showRemovalConfirmation = true else onInstall(catalog) },
+        onClick = {},
         enabled = !installing,
         leadingIcon = Icons.Default.ViewList,
         leadingImageUrl = catalog.iconUrl,
         trailingIcon = if (installed) Icons.Default.Delete else Icons.Default.Download,
-        subtitleBadges = catalog.dependencies.map { dependencyNames[it] ?: it }
+        subtitleBadges = catalog.dependencies.map { dependencyNames[it] ?: it },
+        inlineActions = { actionsVisible ->
+            LaunchedEffect(actionsVisible) {
+                if (actionsVisible) runCatching { contentsFocusRequester.requestFocus() }
+            }
+            NuvioTrRepositoryInlineActions(
+                installLabel = stringResource(if (installed) R.string.nuviotr_remove else R.string.nuviotr_install),
+                initialFocusRequester = contentsFocusRequester,
+                onContents = {
+                    onLoadContents(catalog.id, catalog.manifestUrl)
+                    showContents = true
+                },
+                onInstallOrRemove = {
+                    if (installed) showRemovalConfirmation = true else onInstall(catalog)
+                }
+            )
+        }
     )
+    if (showContents) {
+        NuvioTrRepositoryContentsDialog(
+            contents = contents,
+            isLoading = isLoadingContents,
+            onDismiss = { showContents = false }
+        )
+    }
     if (showRemovalConfirmation) {
         NuvioDialog(
             onDismiss = { showRemovalConfirmation = false },

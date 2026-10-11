@@ -31,7 +31,12 @@ data class NuvioTrUiState(
     val installedManifestUrls: Set<String> = emptySet(),
     val installedCollectionIds: Set<String> = emptySet(),
     val installedPluginUrls: Set<String> = emptySet(),
-    val pluginProviders: Map<String, List<String>> = emptyMap()
+    val pluginProviders: Map<String, List<String>> = emptyMap(),
+    val loadingPluginProviders: Set<String> = emptySet(),
+    val catalogContents: Map<String, List<String>> = emptyMap(),
+    val collectionContents: Map<String, List<String>> = emptyMap(),
+    val loadingCatalogContents: Set<String> = emptySet(),
+    val loadingCollectionContents: Set<String> = emptySet()
 )
 
 @HiltViewModel
@@ -115,11 +120,53 @@ class NuvioTrViewModel @Inject constructor(
     }
 
     fun loadPluginProviders(id: String, manifestUrl: String) = viewModelScope.launch {
-        if (id in _uiState.value.pluginProviders) return@launch
+        if (id in _uiState.value.pluginProviders || id in _uiState.value.loadingPluginProviders) return@launch
+        _uiState.update { it.copy(loadingPluginProviders = it.loadingPluginProviders + id) }
         val providers = runCatching { pluginManager.getRepositoryProviderNames(manifestUrl) }
             .getOrDefault(emptyList())
         _uiState.update { state ->
-            state.copy(pluginProviders = state.pluginProviders + (id to providers))
+            state.copy(
+                pluginProviders = state.pluginProviders + (id to providers),
+                loadingPluginProviders = state.loadingPluginProviders - id
+            )
+        }
+    }
+
+    fun loadCatalogContents(id: String, manifestUrl: String) = viewModelScope.launch {
+        if (id in _uiState.value.catalogContents || id in _uiState.value.loadingCatalogContents) return@launch
+        _uiState.update { it.copy(loadingCatalogContents = it.loadingCatalogContents + id) }
+        val baseUrl = manifestUrl.removeSuffix("/manifest.json").trimEnd('/')
+        val contents = runCatching {
+            when (val result = addonRepository.fetchAddon(baseUrl)) {
+                is NetworkResult.Success -> result.data.catalogs
+                    .map { it.name }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                else -> emptyList()
+            }
+        }.getOrDefault(emptyList())
+        _uiState.update { state ->
+            state.copy(
+                catalogContents = state.catalogContents + (id to contents),
+                loadingCatalogContents = state.loadingCatalogContents - id
+            )
+        }
+    }
+
+    fun loadCollectionContents(id: String, collectionUrl: String) = viewModelScope.launch {
+        if (id in _uiState.value.collectionContents || id in _uiState.value.loadingCollectionContents) return@launch
+        _uiState.update { it.copy(loadingCollectionContents = it.loadingCollectionContents + id) }
+        val contents = runCatching {
+            collectionsDataStore.importFromJson(api.getCollection(collectionUrl).string())
+                .map { it.title }
+                .filter { it.isNotBlank() }
+                .distinct()
+        }.getOrDefault(emptyList())
+        _uiState.update { state ->
+            state.copy(
+                collectionContents = state.collectionContents + (id to contents),
+                loadingCollectionContents = state.loadingCollectionContents - id
+            )
         }
     }
 

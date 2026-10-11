@@ -3411,6 +3411,7 @@
     <string name="nuviotr_origin_dialog_title">Dikkat!</string>
     <string name="nuviotr_origin_dialog_message">Bu uzantının çalışmasında sorunlar olabilir!\nKaynak: %1$s\n%2$s kurulsun mu?</string>
     <string name="nuviotr_plugin_providers">Sağlayıcılar</string>
+    <string name="nuviotr_repository_contents">Depo İçerikleri</string>
     <string name="nuviotr_search">Ara</string>
     <string name="nuviotr_search_placeholder">Depolarda ara</string>
     <string name="nuviotr_refresh">Yenile</string>

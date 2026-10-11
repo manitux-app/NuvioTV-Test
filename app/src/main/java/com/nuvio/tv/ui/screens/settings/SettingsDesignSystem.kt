@@ -822,7 +822,8 @@ internal fun SettingsActionRow(
     leadingImageUrl: String? = null,
     @RawRes leadingRawIconRes: Int? = null,
     leadingArtworkSize: Dp = NuvioTheme.spacing.xl,
-    valueColor: Color = NuvioTheme.colors.TextSecondary
+    valueColor: Color = NuvioTheme.colors.TextSecondary,
+    inlineActions: @Composable ColumnScope.(Boolean) -> Unit = {}
 ) {
     val contentAlpha = if (enabled) 1f else 0.4f
     var isFocused by remember { mutableStateOf(false) }
@@ -838,7 +839,7 @@ internal fun SettingsActionRow(
                 role = Role.Button
             }
             .onFocusChanged { state ->
-                val nowFocused = state.isFocused
+                val nowFocused = state.hasFocus
                 if (isFocused != nowFocused) {
                     isFocused = nowFocused
                     if (nowFocused) onFocused()
@@ -926,6 +927,9 @@ internal fun SettingsActionRow(
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                if (isFocused) {
+                    inlineActions(true)
                 }
                 val blueBadges = subtitleBadges.filter { it.isNotBlank() }
                 val successBadges = subtitleSuccessBadges.filter { it.isNotBlank() }

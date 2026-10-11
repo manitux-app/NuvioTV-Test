@@ -3412,6 +3412,7 @@
     <string name="nuviotr_origin_dialog_title">Warning!</string>
     <string name="nuviotr_origin_dialog_message">This extension may have compatibility issues.\nOrigin: %1$s\nDo you want to install %2$s?</string>
     <string name="nuviotr_plugin_providers">Providers</string>
+    <string name="nuviotr_repository_contents">Repository contents</string>
     <string name="nuviotr_search">Search</string>
     <string name="nuviotr_search_placeholder">Search repositories</string>
     <string name="nuviotr_refresh">Refresh</string>
