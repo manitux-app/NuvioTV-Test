@@ -624,6 +624,12 @@ private fun HomeSourceMenus(
         uiState.selectedCatalogRepositoryFilterId != HOME_SERVER_CATALOGS_FILTER_ID &&
             uiState.selectedCatalogSourceId != null &&
             streamSelectionResolved
+    val catalogRepositoryName = uiState.selectedCatalogRepositoryFilterId
+        .takeUnless { it == HOME_SERVER_CATALOGS_FILTER_ID }
+        ?.let { selectedId -> uiState.catalogRepositoryFilters.firstOrNull { it.id == selectedId }?.name }
+    val streamRepositoryName = uiState.selectedStreamRepositoryFilterId
+        ?.let { selectedId -> uiState.streamRepositoryFilters.firstOrNull { it.id == selectedId }?.name }
+        ?: stringResource(R.string.home_all_repositories)
 
     LaunchedEffect(catalogFocusRequest) {
         if (catalogFocusRequest > 0) {
@@ -665,6 +671,7 @@ private fun HomeSourceMenus(
             HomeSourceDropdownPicker(
                 title = stringResource(R.string.home_catalog_source),
                 emptyLabel = stringResource(R.string.home_catalog_select),
+                repositoryName = catalogRepositoryName,
                 selectedId = uiState.selectedCatalogSourceId,
                 expanded = catalogExpanded,
                 allOptions = uiState.catalogSources,
@@ -723,6 +730,7 @@ private fun HomeSourceMenus(
                 HomeSourceDropdownPicker(
                     title = stringResource(R.string.home_stream_source),
                     emptyLabel = stringResource(R.string.home_stream_source),
+                    repositoryName = streamRepositoryName,
                     selectedId = uiState.selectedStreamSourceId,
                     expanded = streamExpanded,
                     allOptions = uiState.streamSources,
@@ -932,6 +940,7 @@ private fun HomeRepositoryFilterDialogOption(
 private fun HomeSourceDropdownPicker(
     title: String,
     emptyLabel: String,
+    repositoryName: String?,
     selectedId: String?,
     expanded: Boolean,
     allOptions: List<HomeMenuSource>,
@@ -981,7 +990,32 @@ private fun HomeSourceDropdownPicker(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
             ) {
-                Text(title, style = MaterialTheme.typography.labelSmall, color = NuvioTheme.colors.TextTertiary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = NuvioTheme.colors.TextTertiary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!repositoryName.isNullOrBlank()) {
+                        Text(
+                            text = repositoryName,
+                            modifier = Modifier
+                                .background(NuvioTheme.colors.BackgroundElevated, RoundedCornerShape(8.dp))
+                                .padding(horizontal = NuvioTheme.spacing.sm, vertical = NuvioTheme.spacing.xxs),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NuvioTheme.colors.TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,

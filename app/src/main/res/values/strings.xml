@@ -1801,6 +1801,7 @@
     <string name="home_catalog_select">Select a catalog</string>
     <string name="home_catalog_selection_title">Catalog Repo Selection</string>
     <string name="home_stream_selection_title">Source Repo Selection</string>
+    <string name="home_all_repositories">All Repositories</string>
     <string name="stream_episode_label">S%1$d E%2$d</string>
 
     <string name="player_no_external_player">No external player found</string>
