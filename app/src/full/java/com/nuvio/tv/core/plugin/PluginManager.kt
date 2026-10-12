@@ -920,7 +920,8 @@ class PluginManager @Inject constructor(
         val root = com.google.gson.JsonParser.parseString(raw).takeIf { it.isJsonObject }?.asJsonObject
             ?: return PluginCatalogPage(emptyList())
         val source = PluginSourceRef(RepositoryType.NUVIO_JS, scraper.repositoryId, scraper.id)
-        val items = root.getAsJsonArray("items")?.mapNotNull { element ->
+        // Accept the Nuvio `items` contract and Stremio-compatible plugins' `metas` contract.
+        val items = (root.getAsJsonArray("items") ?: root.getAsJsonArray("metas"))?.mapNotNull { element ->
             val value = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
             val id = value.string("id") ?: return@mapNotNull null
             val name = decodePluginCatalogName(value.string("name") ?: return@mapNotNull null)
