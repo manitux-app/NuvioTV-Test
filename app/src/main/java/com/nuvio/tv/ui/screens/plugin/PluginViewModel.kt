@@ -271,6 +271,28 @@ class PluginViewModel @Inject constructor(
         }
     }
 
+    fun openSettings(scraper: com.nuvio.tv.domain.model.ScraperInfo, activityContext: Context) {
+        if (scraper.type == com.nuvio.tv.domain.model.RepositoryType.NUVIO_JS) {
+            viewModelScope.launch {
+                val schema = pluginManager.getSettingsSchema(scraper)
+                _uiState.update { it.copy(pluginSettings = schema, errorMessage = if (schema == null) context.getString(R.string.plugin_settings_unavailable) else null) }
+            }
+            return
+        }
+        if (!pluginManager.openSettings(scraper, activityContext)) {
+            _uiState.update { it.copy(errorMessage = context.getString(R.string.plugin_settings_unavailable)) }
+        }
+    }
+
+    fun saveSettings(schema: com.nuvio.tv.domain.model.PluginSettingsSchema, values: Map<String, String>) {
+        viewModelScope.launch {
+            pluginManager.saveSettings(schema, values)
+            _uiState.update { it.copy(pluginSettings = null, successMessage = context.getString(R.string.plugin_settings_saved)) }
+        }
+    }
+
+    fun dismissSettings() { _uiState.update { it.copy(pluginSettings = null) } }
+
     private fun normalizeUrlForComparison(url: String): String {
         return url.trim().trimEnd('/').lowercase()
     }

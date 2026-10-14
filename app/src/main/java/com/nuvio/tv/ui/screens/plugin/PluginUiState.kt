@@ -5,6 +5,7 @@ import com.nuvio.tv.core.plugin.TestDiagnostics
 import com.nuvio.tv.domain.model.LocalScraperResult
 import com.nuvio.tv.domain.model.PluginRepository
 import com.nuvio.tv.domain.model.ScraperInfo
+import com.nuvio.tv.domain.model.PluginSettingsSchema
 
 data class PluginUiState(
     val pluginsEnabled: Boolean = true,
@@ -26,7 +27,8 @@ data class PluginUiState(
     // Pending change from phone
     val pendingRepoChange: PendingRepoChangeInfo? = null,
     // Pending scraper enable confirmation
-    val pendingScraperEnable: PendingScraperEnableInfo? = null
+    val pendingScraperEnable: PendingScraperEnableInfo? = null,
+    val pluginSettings: PluginSettingsSchema? = null
 )
 
 data class PendingRepoChangeInfo(

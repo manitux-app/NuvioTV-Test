@@ -106,6 +106,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.nuvio.tv.ui.components.LocalStartupLoadingState
+import com.nuvio.tv.ui.components.PluginMessageDialogHost
 import com.nuvio.tv.ui.components.LocalStartupSplashEnabled
 import com.nuvio.tv.ui.components.StartupLoadingState
 import com.nuvio.tv.ui.components.StartupDestination
@@ -1674,6 +1675,7 @@ private fun LegacySidebarScaffold(
                     startDestination = startDestination,
                     hideBuiltInHeaders = hideBuiltInHeaders
                 )
+                PluginMessageDialogHost()
             }
         }
     }

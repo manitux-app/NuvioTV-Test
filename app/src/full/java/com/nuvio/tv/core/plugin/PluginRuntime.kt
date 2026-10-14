@@ -261,6 +261,18 @@ class PluginRuntime @Inject constructor() {
         })();
     """.trimIndent()
 
+    private fun getSettingsCallCode(): String = """
+        (async function() {
+            try {
+                var getSettings = module.exports.getSettings || globalThis.getSettings;
+                __capture_result(JSON.stringify(getSettings ? (await getSettings()) || {} : {}));
+            } catch (e) { console.error("getSettings error:", e.message || e); __capture_result("{}"); }
+        })();
+    """.trimIndent()
+
+    suspend fun executeSettings(code: String, scraperId: String, scraperSettings: Map<String, Any>): String =
+        withTimeout(PLUGIN_TIMEOUT_MS) { executePluginInternal(code, scraperId, scraperSettings, getSettingsCallCode(), emptyMap(), true) }
+
     private fun getCommentsCallCode(): String = """
         (async function() {
             try {
@@ -550,6 +562,14 @@ class PluginRuntime @Inject constructor() {
                 function("__get_scraper_id") { scraperId }
                 function("__get_scraper_settings") { settingsJson }
                 function("__get_tmdb_api_key") { BuildConfig.TMDB_API_KEY }
+                function("__show_plugin_message") { args ->
+                    PluginUserMessageBus.show(
+                        scraperId,
+                        args.getOrNull(0)?.toString().orEmpty(),
+                        args.getOrNull(1)?.toString()
+                    )
+                    null
+                }
 
                 val polyfillBytecode = getCompiledPolyfillBytecode(this)
                 evaluate<Any?>(polyfillBytecode)
@@ -840,6 +860,12 @@ class PluginRuntime @Inject constructor() {
             // Global constants (using globalThis to avoid redeclaration errors)
             globalThis.SCRAPER_ID = __get_scraper_id();
             globalThis.SCRAPER_SETTINGS = JSON.parse(__get_scraper_settings());
+            // Host-owned notification API for Nuvio JS plugins. It deliberately
+            // has no callback: plugin code must not block the playback runtime.
+            globalThis.Nuvio = globalThis.Nuvio || {};
+            globalThis.Nuvio.showMessage = function(message, title) {
+                __show_plugin_message(String(message || ''), title == null ? null : String(title));
+            };
             if (typeof TMDB_API_KEY === 'undefined') {
                 globalThis.TMDB_API_KEY = __get_tmdb_api_key();
             }

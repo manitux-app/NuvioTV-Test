@@ -188,6 +188,9 @@ class ExternalExtensionLoader @Inject constructor(
     /** Cache of loaded class loaders by scraper ID */
     private val classLoaderCache = ConcurrentHashMap<String, DexClassLoader>()
 
+    /** Loaded plugin objects retained for Cloudstream's openSettings callback. */
+    private val pluginCache = ConcurrentHashMap<String, Plugin>()
+
     /** Tracks which scraper IDs have already been scanned for extractors */
     private val extractorPreloadedIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
@@ -308,6 +311,7 @@ class ExternalExtensionLoader @Inject constructor(
                 Log.e(TAG, "No @CloudstreamPlugin class found in $scraperId")
                 return emptyList()
             }
+            pluginCache[scraperId] = plugin
 
             // Ensure global stubs are initialized for extensions
             AcraApplication.context = context
@@ -438,6 +442,24 @@ class ExternalExtensionLoader @Inject constructor(
      */
     fun getApis(scraperId: String): List<MainAPI> {
         return apisCache[scraperId] ?: loadExtension(scraperId)
+    }
+
+    fun hasSettings(scraperId: String): Boolean =
+        (pluginCache[scraperId] ?: run {
+            loadExtension(scraperId)
+            pluginCache[scraperId]
+        })?.openSettings != null
+
+    /** Invokes the extension's official Cloudstream settings callback. */
+    fun openSettings(scraperId: String, context: Context): Boolean {
+        val plugin = pluginCache[scraperId] ?: run {
+            loadExtension(scraperId)
+            pluginCache[scraperId]
+        } ?: return false
+        val callback = plugin.openSettings ?: return false
+        return runCatching { callback(context); true }
+            .onFailure { Log.w(TAG, "Plugin settings failed for $scraperId", it) }
+            .getOrDefault(false)
     }
 
     /** Finds a provider using the stable key persisted in [PluginSourceRef]. */
@@ -673,6 +695,7 @@ class ExternalExtensionLoader @Inject constructor(
     }
 
     fun deleteExtension(scraperId: String) {
+        pluginCache.remove(scraperId)
         apisCache.remove(scraperId)
         apiCache.keys.filter { it.startsWith(scraperId) }.forEach { apiCache.remove(it) }
         classLoaderCache.remove(scraperId)
@@ -682,6 +705,7 @@ class ExternalExtensionLoader @Inject constructor(
     }
 
     fun evictCache(scraperId: String) {
+        pluginCache.remove(scraperId)
         apiCache.keys.filter { it.startsWith(scraperId) }.forEach { apiCache.remove(it) }
         classLoaderCache.remove(scraperId)
         extractorPreloadedIds.remove(scraperId)

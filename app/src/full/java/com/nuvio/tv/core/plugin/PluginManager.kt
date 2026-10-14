@@ -29,6 +29,8 @@ import com.nuvio.tv.domain.model.PluginContentRef
 import com.nuvio.tv.domain.model.PluginExternalIds
 import com.nuvio.tv.domain.model.PluginSourceRef
 import com.nuvio.tv.domain.model.ContentType
+import com.nuvio.tv.domain.model.PluginSettingsSchema
+import com.nuvio.tv.domain.model.PluginSettingField
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.CoroutineDispatcher
@@ -365,6 +367,37 @@ class PluginManager @Inject constructor(
     /** Enabled providers that declared a stream capability. Catalog-only plugins stay discoverable. */
     val enabledStreamScrapers: Flow<List<ScraperInfo>> = enabledScrapers.map { scrapers ->
         scrapers.filter { it.supportsStreams }
+    }
+
+    fun hasSettings(scraper: ScraperInfo): Boolean =
+        scraper.type == RepositoryType.EXTERNAL_DEX && externalExtensionLoader.hasSettings(scraper.id)
+
+    fun openSettings(scraper: ScraperInfo, context: android.content.Context): Boolean =
+        scraper.type == RepositoryType.EXTERNAL_DEX && externalExtensionLoader.openSettings(scraper.id, context)
+
+    suspend fun getSettingsSchema(scraper: ScraperInfo): PluginSettingsSchema? {
+        if (scraper.type != RepositoryType.NUVIO_JS) return null
+        val code = dataStore.getScraperCode(scraper.id) ?: return null
+        val current = dataStore.getScraperSettings(scraper.id)
+        val root = runCatching { com.google.gson.JsonParser.parseString(withContext(pluginDispatcher) {
+            runtime.executeSettings(code, scraper.id, current)
+        }).asJsonObject }.getOrNull() ?: return null
+        val fields = root.getAsJsonArray("fields")?.mapNotNull { item ->
+            val value = item.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val key = value.get("key")?.asString?.takeIf { it.matches(Regex("[A-Za-z][A-Za-z0-9_.-]{0,63}")) } ?: return@mapNotNull null
+            val type = value.get("type")?.asString?.lowercase().takeIf { it in setOf("text", "password", "boolean", "select") } ?: "text"
+            PluginSettingField(key, value.get("label")?.asString ?: key, type,
+                value.get("default")?.asString ?: "", value.getAsJsonArray("options")?.mapNotNull { it.takeIf { it.isJsonPrimitive }?.asString } ?: emptyList())
+        }.orEmpty()
+        if (fields.isEmpty()) return null
+        return PluginSettingsSchema(scraper.id, root.get("title")?.asString ?: scraper.name, fields,
+            fields.associate { field -> field.key to (current[field.key]?.toString() ?: field.defaultValue) })
+    }
+
+    suspend fun saveSettings(schema: PluginSettingsSchema, values: Map<String, String>) {
+        dataStore.setScraperSettings(schema.scraperId, schema.fields.associate { field ->
+            field.key to if (field.type == "boolean") values[field.key].toBoolean() else values[field.key].orEmpty()
+        })
     }
     
     /**

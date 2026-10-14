@@ -1787,8 +1787,8 @@
     <string name="home_catalog_select">Katalog Seçiniz</string>
     <string name="home_catalog_selection_title">Katalog Depo Seçimi</string>
     <string name="home_stream_selection_title">Kaynak Depo Seçimi</string>
-    <string name="home_catalog_source">Katalog</string>
     <string name="home_all_repositories">Tüm Depolar</string>
+    <string name="home_catalog_source">Katalog</string>
     <string name="home_stream_source">Kaynak</string>
 
     <!-- PlayerScreen -->
@@ -2268,6 +2268,7 @@
 
     <!-- PluginScreen -->
     <string name="plugin_readonly_notice">Birincil profilin uzantıları eşleştirildi. Başka değişiklik yapmanız kısıtlanmıştır</string>
+    <string name="plugin_message_confirm">Tamam</string>
     <string name="plugin_repositories_section">Depolar (%1$d)</string>
     <string name="plugin_providers_section">Sağlayıcılar (%1$d)</string>
     <string name="plugin_title">Uzantılar</string>
@@ -3417,4 +3418,6 @@
     <string name="nuviotr_search">Ara</string>
     <string name="nuviotr_search_placeholder">Depolarda ara</string>
     <string name="nuviotr_refresh">Yenile</string>
+    <string name="plugin_settings_unavailable">Bu eklenti ayar sunmuyor.</string>
+    <string name="plugin_settings_saved">Eklenti ayarlarÄ± kaydedildi.</string>
 </resources>

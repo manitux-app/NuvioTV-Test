@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -132,6 +134,7 @@ fun PluginScreenContent(
     showHeader: Boolean = true
 ) {
     var repoUrl by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     DisposableEffect(Unit) {
         onDispose { viewModel.stopQrMode() }
@@ -267,6 +270,7 @@ fun PluginScreenContent(
                             viewModel.onEvent(PluginUiEvent.ToggleScraper(scraper.id, enabled))
                         },
                         onTest = { viewModel.onEvent(PluginUiEvent.TestScraper(scraper.id)) },
+                        onSettings = { viewModel.openSettings(scraper, context) },
                         isTesting = uiState.isTesting && uiState.testScraperId == scraper.id,
                         testResults = if (uiState.testScraperId == scraper.id) uiState.testResults else null,
                         testDiagnostics = if (uiState.testScraperId == scraper.id) uiState.testDiagnostics else null,
@@ -317,6 +321,9 @@ fun PluginScreenContent(
                 )
             }
         }
+    }
+    uiState.pluginSettings?.let { schema ->
+        PluginSettingsDialog(schema, onDismiss = viewModel::dismissSettings, onSave = viewModel::saveSettings)
     }
     }
 }
@@ -1240,6 +1247,7 @@ private fun ScraperCard(
     scraper: ScraperInfo,
     onToggle: (Boolean) -> Unit,
     onTest: () -> Unit,
+    onSettings: (() -> Unit)?,
     isTesting: Boolean,
     testResults: List<LocalScraperResult>?,
     testDiagnostics: com.nuvio.tv.core.plugin.TestDiagnostics? = null,
@@ -1247,8 +1255,9 @@ private fun ScraperCard(
 ) {
     var showResults by remember { mutableStateOf(false) }
     var isTestFocused by remember { mutableStateOf(false) }
+    var isSettingsFocused by remember { mutableStateOf(false) }
     var isToggleFocused by remember { mutableStateOf(false) }
-    val isCardFocused = isTestFocused || isToggleFocused
+    val isCardFocused = isTestFocused || isSettingsFocused || isToggleFocused
     val cardBorderColor by animateColorAsState(
         targetValue = if (isCardFocused) NuvioTheme.colors.FocusRing else Color.Transparent,
         label = "scraperCardBorder"
@@ -1320,6 +1329,28 @@ private fun ScraperCard(
                     horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (onSettings != null) {
+                        Button(
+                            onClick = onSettings,
+                            modifier = Modifier
+                                .onFocusChanged { isSettingsFocused = it.isFocused }
+                                .semantics { role = Role.Button },
+                            colors = ButtonDefaults.colors(
+                                containerColor = NuvioTheme.colors.Surface,
+                                contentColor = NuvioTheme.colors.TextPrimary,
+                                focusedContainerColor = NuvioTheme.colors.FocusBackground,
+                                focusedContentColor = NuvioTheme.colors.Primary
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(NuvioTheme.radii.md))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Plugin settings",
+                                modifier = Modifier.size(NuvioTheme.spacing.lg)
+                            )
+                        }
+                    }
+
                     // Test button
                     Button(
                         onClick = onTest,

@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Build
 import android.util.Log
 import com.lagradost.cloudstream3.AcraApplication
+import com.lagradost.cloudstream3.CommonActivity
 import com.lagradost.cloudstream3.app
 import com.lagradost.nicehttp.ignoreAllSSLErrors
 import com.nuvio.tv.NuvioApplication
@@ -70,9 +71,13 @@ object PluginRuntimeHooks {
 
     fun onActivityCreate(activity: Activity) {
         AcraApplication.setActivity(activity)
+        // Some Cloudstream extensions use SingleSelectionHelper directly for
+        // announcements. It obtains its host from CommonActivity.activity.
+        CommonActivity.activity = activity
     }
 
     fun onActivityDestroy() {
         AcraApplication.setActivity(null)
+        CommonActivity.activity = null
     }
 }
