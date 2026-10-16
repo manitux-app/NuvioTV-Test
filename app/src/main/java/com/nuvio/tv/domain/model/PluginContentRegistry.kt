@@ -7,16 +7,26 @@ import java.util.concurrent.ConcurrentHashMap
  * Persistent storage for process recreation is added with the playback flow.
  */
 object PluginContentRegistry {
-    private const val MAX_ITEMS = 512
     private val entries = ConcurrentHashMap<String, PluginCatalogItem>()
     private val streamSelections = ConcurrentHashMap<String, HomeStreamSourceSelection>()
     @Volatile private var activeStreamSelection: HomeStreamSourceSelection? = null
 
     fun put(items: Iterable<PluginCatalogItem>) {
         items.forEach { item -> entries[item.content.stableId()] = item }
-        if (entries.size > MAX_ITEMS) {
-            entries.keys.take(entries.size - MAX_ITEMS).forEach(entries::remove)
-        }
+    }
+
+    /**
+     * Retires the current catalog session before a new Home catalog is loaded.
+     *
+     * Detail navigation only carries a stable ID, so every currently rendered
+     * catalog item must remain available for its fallback detail view. An
+     * arbitrary item-count eviction could discard a visible card and make its
+     * opaque provider ID look like a normal meta ID.
+     */
+    fun clear() {
+        entries.clear()
+        streamSelections.clear()
+        activeStreamSelection = null
     }
 
     fun get(stableId: String): PluginContentRef? = entries[stableId]?.content

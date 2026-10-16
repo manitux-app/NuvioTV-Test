@@ -6,6 +6,7 @@ import com.nuvio.tv.domain.model.Addon
 import com.nuvio.tv.domain.model.CatalogDescriptor
 import com.nuvio.tv.domain.model.CatalogRow
 import com.nuvio.tv.domain.model.MetaPreview
+import com.nuvio.tv.domain.model.PluginContentRegistry
 import com.nuvio.tv.domain.model.stableKey
 import kotlinx.coroutines.Job
 
@@ -152,6 +153,9 @@ internal inline fun HomeViewModel.updateCatalogRow(
 }
 
 internal fun HomeViewModel.clearCatalogData() {
+    // The registry backs Detail's provider-local fallback data. Clear it only
+    // when these Home rows are retired, never while shelves are still visible.
+    PluginContentRegistry.clear()
     synchronized(catalogStateLock) {
         catalogsMap.clear()
         catalogItemKeyIndex.clear()
