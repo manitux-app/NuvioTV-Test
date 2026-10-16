@@ -66,9 +66,11 @@ class ExternalExtensionRunner @Inject constructor(
         scraperId: String
     ): List<ExternalCatalogRequest> = withContext(Dispatchers.IO) {
         extensionLoader.ensureExtractorsLoaded(listOf(scraperId))
-        extensionLoader.getApis(scraperId)
-            .filter { it.hasMainPage }
+        val apis = extensionLoader.getApis(scraperId)
+        val requests = apis
             .flatMap { api -> api.catalogRequests(repositoryId, scraperId, extensionLoader.providerKey(api)) }
+        Log.d(TAG, "Cloudstream catalog discovery scraper=$scraperId providers=${apis.size} requests=${requests.size}")
+        requests
     }
 
     suspend fun executeCatalog(request: ExternalCatalogRequest, page: Int): ExternalCatalogPage =

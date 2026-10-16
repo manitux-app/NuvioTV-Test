@@ -492,27 +492,41 @@ class HomeViewModel @Inject constructor(
     }
 
     internal fun updateHomeSources(): Boolean {
-        val catalogSources = addonsCache
+        val cloudstreamProviderNames = externalCatalogRequestsCache.values
+            .asSequence()
+            .flatMap { requests -> requests.asSequence() }
+            .map { request -> request.source.repositoryId to request.providerName.normalizedMenuName() }
+            .toSet()
+        val catalogSources = (addonsCache
             .filter { it.catalogs.isNotEmpty() }
             .map { HomeMenuSource("addon:${it.id}", it.name) } +
-            pluginScrapersCache.filter { it.catalogs.isNotEmpty() }
-                .map { HomeMenuSource("plugin:${it.id}", it.name, repositoryId = it.repositoryId) } +
-                externalCatalogRequestsCache.map { (id, requests) ->
-                    val source = requests.first().source
-                    val pluginName = pluginScrapersCache.firstOrNull { it.id == source.scraperId }?.name
-                        ?: source.scraperId
-                    HomeMenuSource(id, pluginName, repositoryId = source.repositoryId)
-                }
-        val streamSources = listOf(HomeMenuSource(HOME_ALL_STREAM_SOURCES_ID, nameResId = R.string.stream_filter_all)) +
             pluginScrapersCache
-                .filter { it.supportsStreams }
+                // CloudStream catalogs are derived from their registered MainAPI
+                // instances below. Their manifest has no catalog contract.
+                .filter { it.type != RepositoryType.EXTERNAL_DEX && it.catalogs.isNotEmpty() }
                 .map { HomeMenuSource("plugin:${it.id}", it.name, repositoryId = it.repositoryId) } +
                 externalCatalogRequestsCache.map { (id, requests) ->
-                    val source = requests.first().source
-                    val pluginName = pluginScrapersCache.firstOrNull { it.id == source.scraperId }?.name
-                        ?: source.scraperId
-                    HomeMenuSource(id, pluginName, repositoryId = source.repositoryId)
+                    val request = requests.first()
+                    HomeMenuSource(id, request.providerName, repositoryId = request.source.repositoryId)
+                })
+            .distinctCloudstreamProviders()
+        val streamSources = (listOf(HomeMenuSource(HOME_ALL_STREAM_SOURCES_ID, nameResId = R.string.stream_filter_all)) +
+            pluginScrapersCache
+                // Retain DEX providers without a catalog, but not the generic
+                // entry when a provider-scoped CloudStream source has the same
+                // visible name.
+                .filter { scraper ->
+                    scraper.supportsStreams && (
+                        scraper.type != RepositoryType.EXTERNAL_DEX ||
+                            (scraper.repositoryId to scraper.name.normalizedMenuName()) !in cloudstreamProviderNames
+                        )
                 }
+                .map { HomeMenuSource("plugin:${it.id}", it.name, repositoryId = it.repositoryId) } +
+                externalCatalogRequestsCache.map { (id, requests) ->
+                    val request = requests.first()
+                    HomeMenuSource(id, request.providerName, repositoryId = request.source.repositoryId)
+                })
+            .distinctCloudstreamProviders()
         val repositoriesById = pluginRepositoriesCache.associateBy { it.id }
         val catalogRepositoryFilters = catalogSources
             .mapNotNull { it.repositoryId }
@@ -568,6 +582,22 @@ class HomeViewModel @Inject constructor(
     private fun List<HomeMenuSource>.filterByCatalogRepository(repositoryId: String): List<HomeMenuSource> =
         if (repositoryId == HOME_SERVER_CATALOGS_FILTER_ID) filter { it.repositoryId == null }
         else filter { it.repositoryId == repositoryId }
+
+    /**
+     * A repository can ship a provider both as a standalone DEX and inside a
+     * bundle. They are separate runtime sources, but indistinguishable menu
+     * choices. Keep the first provider for a repository/name pair.
+     */
+    private fun List<HomeMenuSource>.distinctCloudstreamProviders(): List<HomeMenuSource> =
+        distinctBy { source ->
+            if (source.id.startsWith("cloudstream:")) {
+                "cloudstream:${source.repositoryId}:${source.name?.normalizedMenuName()}"
+            } else {
+                source.id
+            }
+        }
+
+    private fun String.normalizedMenuName(): String = trim().lowercase()
 
     private fun List<HomeMenuSource>.filterByRepository(repositoryId: String?): List<HomeMenuSource> =
         if (repositoryId == null) this else filter { source ->

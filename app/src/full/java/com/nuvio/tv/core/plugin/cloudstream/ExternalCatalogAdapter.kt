@@ -12,10 +12,13 @@ import com.nuvio.tv.domain.model.PluginCatalogItem
 import com.nuvio.tv.domain.model.PluginContentRef
 import com.nuvio.tv.domain.model.PluginSourceRef
 import com.nuvio.tv.domain.model.RepositoryType
+import kotlin.coroutines.Continuation
 
 /** A CloudStream provider plus one of its declared main-page requests. */
 data class ExternalCatalogRequest(
     val source: PluginSourceRef,
+    /** CloudStream's provider name, distinct from the containing .cs3 extension name. */
+    val providerName: String,
     val name: String,
     val request: MainPageRequest
 )
@@ -36,15 +39,38 @@ internal fun MainAPI.catalogRequests(
     repositoryId: String,
     scraperId: String,
     providerKey: String
-): List<ExternalCatalogRequest> = mainPage
-    .distinctBy { it.name to it.data }
-    .map { page ->
+): List<ExternalCatalogRequest> {
+    // `hasMainPage` is an optional Cloudstream UI hint. Older providers can
+    // implement getMainPage and expose requests without setting that flag.
+    // MainAPI itself supplies one blank placeholder, which is not a catalog.
+    val requests = mainPage
+        .filter { page -> page.name.isNotBlank() || page.data.isNotBlank() }
+        .distinctBy { it.name to it.data }
+        .map { page -> MainPageRequest(page.name, page.data, page.horizontalImages) }
+        .ifEmpty {
+            // This preserves Cloudstream's default request for providers that
+            // implement getMainPage without declaring page metadata.
+            if (overridesGetMainPage()) listOf(MainPageRequest("", "", false)) else emptyList()
+        }
+
+    return requests.map { request ->
         ExternalCatalogRequest(
             source = PluginSourceRef(RepositoryType.EXTERNAL_DEX, repositoryId, scraperId, providerKey),
-            name = page.name,
-            request = MainPageRequest(page.name, page.data, page.horizontalImages)
+            providerName = name,
+            name = request.name,
+            request = request
         )
     }
+}
+
+private fun MainAPI.overridesGetMainPage(): Boolean = runCatching {
+    javaClass.getMethod(
+        "getMainPage",
+        Int::class.javaPrimitiveType!!,
+        MainPageRequest::class.java,
+        Continuation::class.java
+    ).declaringClass != MainAPI::class.java
+}.getOrDefault(false)
 
 internal fun HomePageList.toCatalogRow(source: PluginSourceRef): ExternalCatalogRow? {
     val items = list.mapNotNull { it.toCatalogItem(source) }
