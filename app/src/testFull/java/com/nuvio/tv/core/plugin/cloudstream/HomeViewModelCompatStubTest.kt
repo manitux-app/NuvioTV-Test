@@ -1,8 +1,10 @@
 package com.nuvio.tv.core.plugin.cloudstream
 
+import com.lagradost.cloudstream3.APIHolder
 import com.lagradost.cloudstream3.ui.home.HomeViewModel
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.utils.AtomicMutableList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -38,5 +40,12 @@ class HomeViewModelCompatStubTest {
         // append a Continuation parameter on the JVM.
         assertEquals(Any::class.java, method!!.returnType)
         assertTrue(method.parameterTypes.last().name.startsWith("kotlin.coroutines.Continuation"))
+    }
+
+    @Test
+    fun `CloudStream provider registry matches extensions built against AtomicMutableList`() {
+        val method = APIHolder::class.java.getMethod("getAllProviders")
+
+        assertEquals(AtomicMutableList::class.java, method.returnType)
     }
 }

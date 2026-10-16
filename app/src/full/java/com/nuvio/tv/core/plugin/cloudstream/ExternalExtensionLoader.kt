@@ -313,6 +313,14 @@ class ExternalExtensionLoader @Inject constructor(
             }
             pluginCache[scraperId] = plugin
 
+            // Current Cloudstream BasePlugin implementations register providers
+            // in APIHolder.apis rather than this compatibility Plugin's local
+            // list. Snapshot it so providers from other extensions stay scoped
+            // to their own scraper.
+            val registeredApisBeforeLoad = synchronized(APIHolder.apis) {
+                APIHolder.apis.toSet()
+            }
+
             // Ensure global stubs are initialized for extensions
             AcraApplication.context = context
             extractorRegistry.installGlobal()
@@ -339,7 +347,13 @@ class ExternalExtensionLoader @Inject constructor(
             // Register any extractors the plugin provides
             extractorRegistry.registerAll(plugin.registeredExtractorAPIs)
 
-            var apis = plugin.registeredMainAPIs
+            val globallyRegisteredApis = synchronized(APIHolder.apis) {
+                APIHolder.apis.filterNot { it in registeredApisBeforeLoad }
+            }
+            if (globallyRegisteredApis.isNotEmpty()) {
+                Log.d(TAG, "Found ${globallyRegisteredApis.size} MainAPIs via APIHolder for $scraperId")
+            }
+            var apis = (plugin.registeredMainAPIs + globallyRegisteredApis).distinct()
             Log.d(TAG, "After load(): ${apis.size} MainAPIs, ${plugin.registeredExtractorAPIs.size} extractors")
 
             // FALLBACK: If load() registered 0 APIs or 0 extractors, scan DEX directly.
@@ -723,8 +737,9 @@ class ExternalExtensionLoader @Inject constructor(
     }
 
     private fun extractMissingClassName(e: Error): String? {
+        if (e !is NoClassDefFoundError) return null
         val msg = e.message ?: return null
-        val match = Regex("""(?:L?)([\w/.]+)(?:;)?""").find(msg)
+        val match = Regex("""L([\w/$]+);""").find(msg)
         return match?.groupValues?.get(1)?.replace('/', '.')
     }
 
