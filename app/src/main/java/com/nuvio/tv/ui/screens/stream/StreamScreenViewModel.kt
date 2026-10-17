@@ -68,12 +68,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -107,6 +110,7 @@ class StreamScreenViewModel @Inject constructor(
     private val torrentService: TorrentService,
     private val serverStreams: ServerStreams,
     private val serverPlayback: ServerPlayback,
+    party: com.nuvio.tv.core.party.PartyRepository,
     profileManager: com.nuvio.tv.core.profile.ProfileManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -164,6 +168,29 @@ class StreamScreenViewModel @Inject constructor(
         ?.toBooleanStrictOrNull()
         ?: false
     private val streamCacheKey: String = "${contentType.lowercase()}|$videoId"
+    private val partyKey: String = com.nuvio.tv.core.party.partyMediaKey(
+        metaType = contentType,
+        metaId = contentId ?: videoId.substringBefore(":"),
+        season = season,
+        episode = episode
+    )
+
+    val partySource: StateFlow<com.nuvio.tv.core.party.PartySource?> = party.state
+        .map { state -> state.party?.media?.takeIf { it.key == partyKey }?.source }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val sharedStream: StateFlow<SharedStream?> = combine(party.state, party.sharedStream) { state, stream ->
+        val current = state.party
+        if (current == null || current.isHost || stream == null || stream.mediaKey != partyKey) {
+            null
+        } else {
+            SharedStream(
+                hostName = current.member(current.hostMemberId)?.displayName.orEmpty(),
+                stream = stream.toStream()
+            )
+        }
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _uiState = MutableStateFlow(
         StreamScreenUiState(
@@ -472,7 +499,9 @@ class StreamScreenViewModel @Inject constructor(
                                 videoSize = cached.videoSize,
                                 fileIdx = cached.fileIdx,
                                 sources = cached.sources,
-                                contentLanguage = cached.contentLanguage ?: contentLanguage
+                                contentLanguage = cached.contentLanguage ?: contentLanguage,
+                                pluginPlaybackSource = pluginContent?.toPlaybackSource()
+                                    ?: homeStreamSelection?.toPlaybackSource()
                             ),
                             showDirectAutoPlayOverlay = showOverlay || it.showDirectAutoPlayOverlay,
                             isDirectAutoPlayFlow = showOverlay || it.isDirectAutoPlayFlow
@@ -1233,14 +1262,14 @@ class StreamScreenViewModel @Inject constructor(
         }
     }
 
-    suspend fun resolveStreamForPlayback(stream: Stream): StreamPlaybackInfo? {
+    suspend fun resolveStreamForPlayback(stream: Stream, saveLastLink: Boolean = true): StreamPlaybackInfo? {
         stream.serverTarget?.let { target -> return prepareServerStream(stream, target) }
         if (stream.youTubeIdToResolve() != null) {
             return resolveYouTubeStreamForPlayback(stream)
         }
         if (!directDebridResolver.shouldResolveToPlayableStream(stream)) {
             Log.d(TAG, "resolveStreamForPlayback: no debrid resolve needed, using direct URL")
-            return getStreamForPlayback(stream)
+            return getStreamForPlayback(stream, saveLastLink)
         }
 
         Log.d(TAG, "resolveStreamForPlayback: starting debrid resolve for stream=${stream.name} addon=${stream.addonName}")
@@ -1323,6 +1352,18 @@ class StreamScreenViewModel @Inject constructor(
                 showDirectDebridPlaybackError(context.getString(R.string.debrid_resolution_failed), refreshStreams = false)
                 null
             }
+        }
+    }
+
+    fun persistBingeGroupForStream(stream: Stream) {
+        val cid = contentId?.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch {
+            bingeGroupCacheDataStore.replace(
+                cid,
+                stream.behaviorHints?.bingeGroup,
+                stream.behaviorHints?.filename,
+                stream.infoHash
+            )
         }
     }
 
@@ -1519,6 +1560,7 @@ class StreamScreenViewModel @Inject constructor(
             sources = stream.sources,
             contentLanguage = contentLanguage,
             pluginPlaybackSource = pluginContent?.toPlaybackSource()
+                ?: homeStreamSelection?.toPlaybackSource()
         )
         StreamSidecarSubtitles.set(playbackUrlFor(playbackInfo), stream.subtitles)
 
@@ -2053,6 +2095,7 @@ private fun Stream.isReadyForDebridPreparation(): Boolean =
         (isDirectDebrid() || (needsLocalDebridResolve() && debridCacheStatus?.state == StreamDebridCacheState.CACHED))
 
 private fun PluginPlaybackSource.toPluginContent(contentType: String): PluginContentRef? {
+    if (contentId.isBlank() || repositoryId.isBlank() || scraperId.isBlank()) return null
     val kind = runCatching { RepositoryType.valueOf(kind) }.getOrNull() ?: return null
     val type = ContentType.fromString(contentType)
     if (type != ContentType.MOVIE && type != ContentType.SERIES) return null
@@ -2065,10 +2108,16 @@ private fun PluginPlaybackSource.toPluginContent(contentType: String): PluginCon
 }
 
 private fun PluginPlaybackSource.toStreamSelection(): HomeStreamSourceSelection? {
-    val kind = runCatching { RepositoryType.valueOf(kind) }.getOrNull() ?: return null
+    val repository = repositoryId.takeIf { it.isNotBlank() }
+    val source = runCatching { RepositoryType.valueOf(kind) }.getOrNull()
+        ?.takeIf { scraperId.isNotBlank() && repository != null }
+        ?.let { parsedKind ->
+            PluginSourceRef(parsedKind, repository!!, scraperId, providerKey)
+        }
+    if (source == null && repository == null) return null
     return HomeStreamSourceSelection(
-        source = PluginSourceRef(kind, repositoryId, scraperId, providerKey),
-        repositoryId = repositoryId,
+        source = source,
+        repositoryId = repository,
         restrictAddonSources = true
     )
 }
@@ -2081,6 +2130,20 @@ private fun PluginContentRef.toPlaybackSource(): PluginPlaybackSource = PluginPl
     contentId = contentId,
     contentUrl = url
 )
+
+private fun HomeStreamSourceSelection.toPlaybackSource(): PluginPlaybackSource? {
+    val selectedSource = source
+    val selectedRepository = selectedSource?.repositoryId ?: repositoryId
+    if (selectedSource == null && selectedRepository.isNullOrBlank()) return null
+    return PluginPlaybackSource(
+        kind = selectedSource?.kind?.name.orEmpty(),
+        repositoryId = selectedRepository.orEmpty(),
+        scraperId = selectedSource?.scraperId.orEmpty(),
+        providerKey = selectedSource?.providerKey,
+        contentId = "",
+        contentUrl = null
+    )
+}
 
 private fun formatSpeed(context: android.content.Context, bytesPerSec: Long): String {
     return when {

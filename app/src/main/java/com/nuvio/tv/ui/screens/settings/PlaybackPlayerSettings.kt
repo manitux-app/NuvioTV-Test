@@ -8,6 +8,7 @@ import com.nuvio.tv.data.local.AutoSkipSegmentType
 import com.nuvio.tv.data.local.InternalPlayerEngine
 import com.nuvio.tv.data.local.PlayerPreference
 import com.nuvio.tv.data.local.PlayerSettings
+import com.nuvio.tv.ui.screens.player.PLAYBACK_SPEEDS
 
 @Composable
 internal fun PlaybackPlayerSection(
@@ -36,6 +37,24 @@ internal fun PlaybackPlayerSection(
         checked = settings.autoSwitchInternalPlayerOnError,
         onToggle = { onUpdate { setAutoSwitchInternalPlayerOnError(!settings.autoSwitchInternalPlayerOnError) } },
         enabled = !usesExternalPlayer
+    )
+    SettingsToggleRow(
+        title = stringResource(R.string.playback_remember_video_speed_title),
+        subtitle = stringResource(R.string.playback_remember_video_speed_description),
+        checked = settings.rememberPlaybackSpeedAcrossVideos,
+        onToggle = {
+            onUpdate {
+                setRememberPlaybackSpeedAcrossVideos(!settings.rememberPlaybackSpeedAcrossVideos)
+            }
+        },
+        enabled = !usesExternalPlayer
+    )
+    SettingsActionRow(
+        title = stringResource(R.string.playback_remember_video_speed_value),
+        subtitle = null,
+        value = playbackSpeedLabel(settings.globalPlaybackSpeed),
+        enabled = !usesExternalPlayer && settings.rememberPlaybackSpeedAcrossVideos,
+        onClick = { onOpenDialog(PlaybackDialog.GLOBAL_PLAYBACK_SPEED) }
     )
 
     if (settings.playerPreference != PlayerPreference.INTERNAL) {
@@ -183,6 +202,30 @@ private fun internalEngineLabel(engine: InternalPlayerEngine): String = when (en
     InternalPlayerEngine.EXOPLAYER -> stringResource(R.string.playback_engine_exoplayer)
     InternalPlayerEngine.MVP_PLAYER -> stringResource(R.string.playback_engine_mvplayer)
     InternalPlayerEngine.AUTO -> stringResource(R.string.playback_player_auto)
+}
+
+private fun playbackSpeedLabel(speed: Float): String =
+    if (speed % 1f == 0f) "${speed.toInt()}x" else "${speed}x"
+
+@Composable
+internal fun GlobalPlaybackSpeedDialog(
+    currentSpeed: Float,
+    onSpeedSelected: (Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val options = PLAYBACK_SPEEDS.map { speed ->
+        SettingsPickerOption(speed, playbackSpeedLabel(speed))
+    }
+
+    SettingsSingleChoiceDialog(
+        title = stringResource(R.string.playback_remember_video_speed_value),
+        options = options,
+        selectedValue = currentSpeed,
+        onOptionSelected = onSpeedSelected,
+        onDismiss = onDismiss,
+        width = 420.dp,
+        maxHeight = 320.dp
+    )
 }
 
 @Composable

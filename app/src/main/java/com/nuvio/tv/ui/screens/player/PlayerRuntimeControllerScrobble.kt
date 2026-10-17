@@ -2,6 +2,7 @@ package com.nuvio.tv.ui.screens.player
 
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -93,9 +94,14 @@ internal fun PlayerRuntimeController.preparePlaybackBeforeStart(
                     "subtitle=${persistedTrackPreference?.subtitle?.javaClass?.simpleName ?: "none"}"
             )
         }
-        contentId?.takeIf { it.isNotBlank() }?.let { id ->
-            trackPreferenceDataStore.loadPlaybackSpeed(id)?.let { speed ->
-                _uiState.update { it.copy(playbackSpeed = speed) }
+        val playerSettings = playerSettingsDataStore.playerSettings.first()
+        if (playerSettings.rememberPlaybackSpeedAcrossVideos) {
+            _uiState.update { it.copy(playbackSpeed = playerSettings.globalPlaybackSpeed) }
+        } else {
+            contentId?.takeIf { it.isNotBlank() }?.let { id ->
+                trackPreferenceDataStore.loadPlaybackSpeed(id)?.let { speed ->
+                    _uiState.update { it.copy(playbackSpeed = speed) }
+                }
             }
         }
         // Load saved watch progress BEFORE player init.

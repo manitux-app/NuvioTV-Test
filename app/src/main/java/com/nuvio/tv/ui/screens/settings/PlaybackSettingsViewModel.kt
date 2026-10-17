@@ -100,6 +100,14 @@ class PlaybackSettingsViewModel @Inject constructor(
         playerSettingsDataStore.setAutoSwitchInternalPlayerOnError(enabled)
     }
 
+    suspend fun setRememberPlaybackSpeedAcrossVideos(enabled: Boolean) {
+        playerSettingsDataStore.setRememberPlaybackSpeedAcrossVideos(enabled)
+    }
+
+    suspend fun setGlobalPlaybackSpeed(speed: Float) {
+        playerSettingsDataStore.setGlobalPlaybackSpeed(speed)
+    }
+
     suspend fun setExternalPlayerForwardSubtitles(enabled: Boolean) {
         playerSettingsDataStore.setExternalPlayerForwardSubtitles(enabled)
     }

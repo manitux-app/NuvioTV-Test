@@ -52,6 +52,7 @@ internal val PlayerSettings.usesMpvEngine: Boolean
 internal enum class PlaybackDialog {
     PLAYER_PREFERENCE,
     INTERNAL_ENGINE,
+    GLOBAL_PLAYBACK_SPEED,
     STREAM_AUTO_PLAY_MODE,
     STREAM_AUTO_PLAY_SOURCE,
     STREAM_AUTO_PLAY_ADDONS,

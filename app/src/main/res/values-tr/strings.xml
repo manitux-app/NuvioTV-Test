@@ -720,6 +720,9 @@
     <string name="contributors_profile_unavailable">Bu kişinin GitHub profiline ulaşılamıyor.</string>
     <string name="playback_section_player_title">Oynatıcı</string>
     <string name="playback_section_player_title_desc">Varsayılan oynatıcı, dahili motor ve hata durumunda alternatif oynatıcı.</string>
+    <string name="playback_remember_video_speed_title">Video Oynatma Hızı</string>
+    <string name="playback_remember_video_speed_description">Seçili video oynatma hızını tüm videolar için hatırla.</string>
+    <string name="playback_remember_video_speed_value">Oynatma hızı</string>
     <string name="playback_section_stream_selection">Yayın Seçimi</string>
     <string name="playback_section_stream_selection_desc">Oynat\'a bastığınızda yayının nasıl seçileceğini belirler.</string>
     <string name="playback_section_up_next">Sıradaki</string>

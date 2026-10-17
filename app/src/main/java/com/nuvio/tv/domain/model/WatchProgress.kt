@@ -3,7 +3,12 @@ package com.nuvio.tv.domain.model
 import androidx.compose.runtime.Immutable
 import org.json.JSONObject
 
-/** Persistent plugin provenance for resuming a catalog-plugin item after process recreation. */
+/**
+ * Persistent plugin provenance for resuming playback after process recreation.
+ *
+ * For server catalog items, [contentId] is empty and this object carries only the
+ * independent Home source-menu selection.
+ */
 data class PluginPlaybackSource(
     val kind: String,
     val repositoryId: String,

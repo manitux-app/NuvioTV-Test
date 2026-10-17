@@ -218,6 +218,8 @@ data class PlayerSettings(
     val playerPreference: PlayerPreference = PlayerPreference.INTERNAL,
     val internalPlayerEngine: InternalPlayerEngine = InternalPlayerEngine.EXOPLAYER,
     val autoSwitchInternalPlayerOnError: Boolean = false,
+    val rememberPlaybackSpeedAcrossVideos: Boolean = false,
+    val globalPlaybackSpeed: Float = 1f,
     val useLibass: Boolean = true,
     val libassRenderType: LibassRenderType = LibassRenderType.OVERLAY_OPEN_GL,
     val subtitleStyle: SubtitleStyleSettings = SubtitleStyleSettings(),
@@ -553,6 +555,8 @@ class PlayerSettingsDataStore @Inject constructor(
     private val externalPlayerForwardSubtitlesKey = booleanPreferencesKey("external_player_forward_subtitles")
     private val externalPlayerSendSkipSegmentsKey = booleanPreferencesKey("external_player_send_skip_segments")
     private val subtitleOrganizationModeKey = stringPreferencesKey("subtitle_organization_mode")
+    private val rememberPlaybackSpeedAcrossVideosKey = booleanPreferencesKey("remember_playback_speed_across_videos")
+    private val globalPlaybackSpeedKey = floatPreferencesKey("global_playback_speed")
 
     // Network Keys
     private val vodCacheEnabledKey = booleanPreferencesKey("vod_cache_enabled")
@@ -850,6 +854,9 @@ class PlayerSettingsDataStore @Inject constructor(
                     runCatching { InternalPlayerEngine.valueOf(it) }.getOrDefault(InternalPlayerEngine.EXOPLAYER)
                 } ?: InternalPlayerEngine.EXOPLAYER,
                 autoSwitchInternalPlayerOnError = prefs[autoSwitchInternalPlayerOnErrorKey] ?: false,
+                rememberPlaybackSpeedAcrossVideos = prefs[rememberPlaybackSpeedAcrossVideosKey] ?: false,
+                globalPlaybackSpeed = (prefs[globalPlaybackSpeedKey] ?: 1f)
+                    .takeIf { it.isFinite() && it > 0f } ?: 1f,
                 useLibass = prefs[useLibassKey] ?: false,
                 libassRenderType = prefs[libassRenderTypeKey]?.let {
                     try { LibassRenderType.valueOf(it) } catch (e: Exception) { LibassRenderType.OVERLAY_OPEN_GL }
@@ -1078,6 +1085,18 @@ class PlayerSettingsDataStore @Inject constructor(
     suspend fun setAutoSwitchInternalPlayerOnError(enabled: Boolean) {
         store().edit { prefs ->
             prefs[autoSwitchInternalPlayerOnErrorKey] = enabled
+        }
+    }
+
+    suspend fun setRememberPlaybackSpeedAcrossVideos(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[rememberPlaybackSpeedAcrossVideosKey] = enabled
+        }
+    }
+
+    suspend fun setGlobalPlaybackSpeed(speed: Float) {
+        store().edit { prefs ->
+            prefs[globalPlaybackSpeedKey] = speed.takeIf { it.isFinite() && it > 0f } ?: 1f
         }
     }
 

@@ -134,6 +134,14 @@ internal fun PlaybackSettingsDialogs(
             },
             onDismiss = onDismiss
         )
+        PlaybackDialog.GLOBAL_PLAYBACK_SPEED -> GlobalPlaybackSpeedDialog(
+            currentSpeed = settings.globalPlaybackSpeed,
+            onSpeedSelected = { speed ->
+                onUpdate { setGlobalPlaybackSpeed(speed) }
+                onDismiss()
+            },
+            onDismiss = onDismiss
+        )
         PlaybackDialog.P2P_CONSENT -> P2pConsentDialog(
             onEnableP2p = {
                 onUpdate { setP2pEnabled(true) }

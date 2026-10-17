@@ -22,6 +22,7 @@ import com.nuvio.tv.data.repository.PlaybackIssueReportInput
 import com.nuvio.tv.data.repository.SkipInterval
 import com.nuvio.tv.domain.model.WatchProgress
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -1430,8 +1431,15 @@ fun PlayerRuntimeController.onEvent(event: PlayerEvent) {
                     showSubtitleDelayOverlay = false
                 )
             }
-            contentId?.takeIf { it.isNotBlank() }?.let { id ->
-                scope.launch { trackPreferenceDataStore.savePlaybackSpeed(id, event.speed) }
+            scope.launch {
+                val settings = playerSettingsDataStore.playerSettings.first()
+                if (settings.rememberPlaybackSpeedAcrossVideos) {
+                    playerSettingsDataStore.setGlobalPlaybackSpeed(event.speed)
+                } else {
+                    contentId?.takeIf { it.isNotBlank() }?.let { id ->
+                        trackPreferenceDataStore.savePlaybackSpeed(id, event.speed)
+                    }
+                }
             }
         }
         PlayerEvent.OnToggleControls -> {
@@ -1603,6 +1611,12 @@ fun PlayerRuntimeController.onEvent(event: PlayerEvent) {
         }
         PlayerEvent.OnDismissSourcesPanel -> {
             dismissSourcesPanel()
+        }
+        PlayerEvent.OnShowPartyPanel -> {
+            showPartyPanel()
+        }
+        PlayerEvent.OnDismissPartyPanel -> {
+            dismissPartyPanel()
         }
         PlayerEvent.OnReloadSourceStreams -> {
             loadSourceStreams(forceRefresh = true)

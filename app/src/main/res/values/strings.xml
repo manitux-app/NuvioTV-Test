@@ -716,6 +716,9 @@
 
     <string name="playback_section_player_title">Player</string>
     <string name="playback_section_player_title_desc">Default player, internal engine and error fallback.</string>
+    <string name="playback_remember_video_speed_title">Video Playback Speed</string>
+    <string name="playback_remember_video_speed_description">Remember the selected video playback speed for all videos.</string>
+    <string name="playback_remember_video_speed_value">Playback speed</string>
     <string name="playback_section_stream_selection">Stream Selection</string>
     <string name="playback_section_stream_selection_desc">How a stream is picked when you press play.</string>
     <string name="playback_section_up_next">Up Next</string>
