@@ -617,13 +617,10 @@ private fun HomeSourceMenus(
     var catalogFocusRequest by remember { mutableStateOf(0) }
     var streamFocusRequest by remember { mutableStateOf(0) }
     val streamFocusRequester = remember { FocusRequester() }
-    val streamSelectionResolved =
-        uiState.selectedStreamRepositoryFilterId != null &&
-            uiState.selectedStreamSourceId != HOME_ALL_STREAM_SOURCES_ID
     val hideStreamControls =
-        uiState.selectedCatalogRepositoryFilterId != HOME_SERVER_CATALOGS_FILTER_ID &&
-            uiState.selectedCatalogSourceId != null &&
-            streamSelectionResolved
+        uiState.selectedCatalogSourceId != null &&
+            uiState.selectedCatalogSourceId == uiState.selectedStreamSourceId &&
+            uiState.selectedStreamSourceId != HOME_ALL_STREAM_SOURCES_ID
     val catalogRepositoryName = uiState.selectedCatalogRepositoryFilterId
         .takeUnless { it == HOME_SERVER_CATALOGS_FILTER_ID }
         ?.let { selectedId -> uiState.catalogRepositoryFilters.firstOrNull { it.id == selectedId }?.name }

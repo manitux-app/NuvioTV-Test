@@ -435,10 +435,15 @@ class StreamRepositoryImpl @Inject constructor(
         pluginContent: PluginContentRef?, selectedPluginScraperId: String?
     ): PluginRequest? {
         if (pluginContent != null) {
+            val contentRequestId = pluginContent.streamRequestIdFor(selectedPluginScraperId)
             return PluginRequest(
-                id = pluginContent.streamRequestIdFor(selectedPluginScraperId) ?: return null,
+                // An opaque catalog ID can only be sent back to its originating
+                // stream plugin. For another selected source, use the TMDB ID
+                // resolved from the enriched detail item when no external ID was
+                // supplied by the catalog.
+                id = contentRequestId ?: tmdbId ?: return null,
                 mediaType = normalizeTmdbPluginType(type),
-                source = "PLUGIN"
+                source = if (contentRequestId != null) "PLUGIN" else "TMDB"
             )
         }
         if (tmdbId != null) {

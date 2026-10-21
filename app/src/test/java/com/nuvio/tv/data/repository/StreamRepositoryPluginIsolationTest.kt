@@ -15,6 +15,9 @@ import com.nuvio.tv.domain.model.Addon
 import com.nuvio.tv.domain.model.AddonResource
 import com.nuvio.tv.domain.model.AddonStreams
 import com.nuvio.tv.domain.model.DebridSettings
+import com.nuvio.tv.domain.model.ContentType
+import com.nuvio.tv.domain.model.PluginContentRef
+import com.nuvio.tv.domain.model.PluginSourceRef
 import com.nuvio.tv.domain.model.RepositoryType
 import com.nuvio.tv.domain.model.ScraperInfo
 import com.nuvio.tv.domain.repository.AddonRepository
@@ -25,6 +28,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -94,6 +98,40 @@ class StreamRepositoryPluginIsolationTest {
         coVerify(exactly = 0) { harness.api.getStreams(any()) }
     }
 
+    @Test
+    fun `catalog-only item uses resolved TMDB ID for selected different stream plugin`() = runTest {
+        val streamScraper = compatibleScraper().copy(id = "stream-plugin")
+        val harness = newHarness(listOf(streamScraper))
+        val catalogSource = PluginSourceRef(RepositoryType.NUVIO_JS, "catalog-repo", "catalog-plugin")
+        val content = PluginContentRef(catalogSource, "opaque-catalog-id", ContentType.MOVIE)
+        coEvery { harness.tmdbService.ensureTmdbId("tt1341338", "movie") } returns "12345"
+        every {
+            harness.pluginManager.executeScrapersStreaming(
+                tmdbId = any(), mediaType = any(), season = any(), episode = any(),
+                scraperId = any(), repositoryId = any(), contentUrl = any(),
+                contentUrlScraperId = any(), contentSource = any()
+            )
+        } returns emptyFlow()
+
+        harness.repository.getStreamsFromAllAddons(
+            type = "movie",
+            videoId = "tt1341338",
+            pluginContent = content,
+            selectedPluginScraperId = streamScraper.id,
+            selectedPluginRepositoryId = streamScraper.repositoryId,
+            restrictAddonSources = true
+        ).toList()
+
+        verify(exactly = 1) {
+            harness.pluginManager.executeScrapersStreaming(
+                tmdbId = "12345", mediaType = "movie", season = null, episode = null,
+                scraperId = streamScraper.id, repositoryId = streamScraper.repositoryId,
+                contentUrl = null, contentUrlScraperId = catalogSource.scraperId,
+                contentSource = catalogSource
+            )
+        }
+    }
+
     /**
      * The stream path must read addon display info from the installed [Addon] it was given, not
      * refetch the manifest. fetchAddon is deliberately left stubbed on the harness so this asserts
@@ -158,9 +196,17 @@ class StreamRepositoryPluginIsolationTest {
 
         val pluginManager = mockk<PluginManager>(relaxed = true)
         every { pluginManager.enabledScrapers } returns flowOf(enabledScrapers)
+        every { pluginManager.enabledStreamScrapers } returns flowOf(enabledScrapers)
         every { pluginManager.pluginsEnabled } returns flowOf(enabledScrapers.isNotEmpty())
         every { pluginManager.groupStreamsByRepository } returns flowOf(false)
         every { pluginManager.repositories } returns flowOf(emptyList())
+        every {
+            pluginManager.executeScrapersStreaming(
+                tmdbId = any(), mediaType = any(), season = any(), episode = any(),
+                scraperId = any(), repositoryId = any(), contentUrl = any(),
+                contentUrlScraperId = any(), contentSource = any()
+            )
+        } returns emptyFlow()
 
         val profileManager = mockk<ProfileManager>(relaxed = true)
         every { profileManager.activeProfileId } returns MutableStateFlow(1)
@@ -199,7 +245,8 @@ class StreamRepositoryPluginIsolationTest {
             ),
             api = api,
             tmdbService = tmdbService,
-            addonRepository = addonRepository
+            addonRepository = addonRepository,
+            pluginManager = pluginManager
         )
     }
 
@@ -245,6 +292,7 @@ class StreamRepositoryPluginIsolationTest {
         val repository: StreamRepositoryImpl,
         val api: AddonApi,
         val tmdbService: TmdbService,
-        val addonRepository: AddonRepository
+        val addonRepository: AddonRepository,
+        val pluginManager: PluginManager
     )
 }
