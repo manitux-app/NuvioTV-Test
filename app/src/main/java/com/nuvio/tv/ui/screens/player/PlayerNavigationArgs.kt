@@ -38,7 +38,8 @@ internal data class PlayerNavigationArgs(
     val rememberedAudioLanguage: String?,
     val rememberedAudioName: String?,
     val launchStartedAtMs: Long?,
-    val profileId: Int?
+    val profileId: Int?,
+    val audioDelayMs: Int? = null
 ) {
     val torrentTrackers: List<String>
         get() {
@@ -99,7 +100,8 @@ internal data class PlayerNavigationArgs(
                 rememberedAudioLanguage = decodedOrNull("rememberedAudioLanguage"),
                 rememberedAudioName = decodedOrNull("rememberedAudioName"),
                 launchStartedAtMs = savedStateHandle.get<String>("launchStartedAtMs")?.toLongOrNull(),
-                profileId = savedStateHandle.get<String>("profileId")?.toIntOrNull()
+                profileId = savedStateHandle.get<String>("profileId")?.toIntOrNull(),
+                audioDelayMs = savedStateHandle.get<String>("audioDelayMs")?.toIntOrNull()
             )
         }
     }

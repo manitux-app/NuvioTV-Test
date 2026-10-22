@@ -227,7 +227,6 @@ class SearchViewModelPaginationTest {
             watchProgressRepository = watchProgress,
             watchedSeriesStateHolder = watchedSeries,
             posterOptions = mockk<PosterOptionsController>(relaxed = true),
-            pluginManager = mockk<com.nuvio.tv.core.plugin.PluginManager>(relaxed = true),
             serverCatalog = mockk { every { searchAddons } returns flowOf(emptyList()) },
             context = mockk<Context>(relaxed = true)
         )
