@@ -315,6 +315,7 @@ private fun PluginRowWithBadges(
         if (plugin.supports.search) stringResource(R.string.nuviotr_support_search) else null,
         if (plugin.supports.comments) stringResource(R.string.nuviotr_support_comments) else null
     )
+    val origin = plugin.origin?.trim()?.takeIf { it.isNotBlank() }
     SettingsActionRow(
         title = plugin.name,
         subtitle = listOf(plugin.authors.joinToString(), plugin.description).filter { it.isNotBlank() }.joinToString("\n"),
@@ -324,8 +325,9 @@ private fun PluginRowWithBadges(
         leadingIcon = Icons.Default.Extension,
         leadingImageUrl = plugin.iconUrl,
         trailingIcon = if (installed) Icons.Default.Delete else Icons.Default.Download,
+        subtitleBadges = origin?.takeUnless(::isCloudstreamOrigin)?.let(::listOf).orEmpty(),
         subtitleSuccessBadges = badges,
-        subtitleErrorBadges = plugin.origin?.takeIf { it.isNotBlank() }?.let(::listOf).orEmpty(),
+        subtitleErrorBadges = origin?.takeIf(::isCloudstreamOrigin)?.let(::listOf).orEmpty(),
         inlineActions = { actionsVisible ->
             LaunchedEffect(actionsVisible) {
                 if (actionsVisible) runCatching { contentsFocusRequester.requestFocus() }
@@ -353,7 +355,7 @@ private fun PluginRowWithBadges(
     if (showConfirmation) {
         NuvioTrInstallDialog(
             name = plugin.name,
-            origin = plugin.origin,
+            origin = origin?.takeIf(::isCloudstreamOrigin),
             onDismiss = { showConfirmation = false },
             onConfirm = { onInstall(plugin.id, plugin.manifestUrl); showConfirmation = false }
         )
@@ -366,6 +368,9 @@ private fun PluginRowWithBadges(
         )
     }
 }
+
+private fun isCloudstreamOrigin(origin: String): Boolean =
+    origin.equals("Cloudstream", ignoreCase = true)
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
