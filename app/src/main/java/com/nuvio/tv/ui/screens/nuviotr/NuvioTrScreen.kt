@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
@@ -56,6 +57,8 @@ import com.nuvio.tv.R
 import com.nuvio.tv.domain.model.NuvioTrCatalog
 import com.nuvio.tv.domain.model.NuvioTrCollection
 import com.nuvio.tv.domain.model.NuvioTrPlugin
+import com.nuvio.tv.domain.model.CatalogDescriptor
+import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.ui.theme.NuvioTheme
 import com.nuvio.tv.ui.screens.settings.SettingsDetailHeader
 import com.nuvio.tv.ui.screens.settings.SettingsGroupCard
@@ -370,7 +373,7 @@ private fun CollectionRow(
     collection: NuvioTrCollection,
     installed: Boolean,
     installing: Boolean,
-    contents: List<String>,
+    contents: List<NuvioTrCollectionContent>,
     isLoadingContents: Boolean,
     onInstall: (String, String) -> Unit,
     onLoadContents: (String, String) -> Unit,
@@ -406,7 +409,7 @@ private fun CollectionRow(
         }
     )
     if (showContents) {
-        NuvioTrRepositoryContentsDialog(
+        NuvioTrCollectionContentsDialog(
             contents = contents,
             isLoading = isLoadingContents,
             onDismiss = { showContents = false }
@@ -510,6 +513,157 @@ private fun NuvioTrRepositoryContentsDialog(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
+private fun NuvioTrCatalogContentsDialog(
+    contents: List<CatalogDescriptor>,
+    isLoading: Boolean = false,
+    onDismiss: () -> Unit
+) {
+    val firstContentFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(isLoading, contents) {
+        if (!isLoading && contents.isNotEmpty()) {
+            runCatching { firstContentFocusRequester.requestFocus() }
+        }
+    }
+    NuvioDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.nuviotr_repository_contents)
+    ) {
+        if (isLoading) {
+            Text(
+                text = stringResource(R.string.nuviotr_loading),
+                style = MaterialTheme.typography.bodyMedium,
+                color = NuvioTheme.colors.TextSecondary
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)
+            ) {
+                itemsIndexed(
+                    items = contents,
+                    key = { index, catalog -> "${catalog.type}:${catalog.id}:$index" }
+                ) { _, catalog ->
+                    val categories = catalog.extra
+                        .flatMap { it.options.orEmpty() }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    Button(
+                        onClick = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (catalog == contents.firstOrNull()) {
+                                    Modifier.focusRequester(firstContentFocusRequester)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
+                        ) {
+                            Text(text = catalog.name, maxLines = 1)
+                            Text(
+                                text = stringResource(
+                                    if (catalog.type == ContentType.MOVIE) R.string.type_movie else R.string.type_series
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = NuvioTheme.colors.TextSecondary,
+                                maxLines = 1
+                            )
+                            if (categories.isNotEmpty()) {
+                                Text(
+                                    text = categories.joinToString(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = NuvioTheme.colors.TextTertiary,
+                                    maxLines = 2
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun NuvioTrCollectionContentsDialog(
+    contents: List<NuvioTrCollectionContent>,
+    isLoading: Boolean = false,
+    onDismiss: () -> Unit
+) {
+    val firstContentFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(isLoading, contents) {
+        if (!isLoading && contents.isNotEmpty()) {
+            runCatching { firstContentFocusRequester.requestFocus() }
+        }
+    }
+    NuvioDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.nuviotr_repository_contents)
+    ) {
+        if (isLoading) {
+            Text(
+                text = stringResource(R.string.nuviotr_loading),
+                style = MaterialTheme.typography.bodyMedium,
+                color = NuvioTheme.colors.TextSecondary
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)
+            ) {
+                items(contents, key = { "${it.name}:${it.type}:${it.categories}" }) { content ->
+                    Button(
+                        onClick = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (content == contents.firstOrNull()) {
+                                    Modifier.focusRequester(firstContentFocusRequester)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xxs)
+                        ) {
+                            Text(text = content.name, maxLines = 1)
+                            Text(
+                                text = stringResource(
+                                    if (content.type == ContentType.MOVIE) R.string.type_movie else R.string.type_series
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = NuvioTheme.colors.TextSecondary,
+                                maxLines = 1
+                            )
+                            if (content.categories.isNotEmpty()) {
+                                Text(
+                                    text = content.categories.joinToString(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = NuvioTheme.colors.TextTertiary,
+                                    maxLines = 2
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
 private fun NuvioTrRow(
     name: String,
     authors: List<String>,
@@ -579,7 +733,7 @@ private fun CatalogRow(
     dependencyNames: Map<String, String>,
     installedUrls: Set<String>,
     installing: Boolean,
-    contents: List<String>,
+    contents: List<CatalogDescriptor>,
     isLoadingContents: Boolean,
     onInstall: (NuvioTrCatalog) -> Unit,
     onLoadContents: (String, String) -> Unit,
@@ -619,7 +773,7 @@ private fun CatalogRow(
         }
     )
     if (showContents) {
-        NuvioTrRepositoryContentsDialog(
+        NuvioTrCatalogContentsDialog(
             contents = contents,
             isLoading = isLoadingContents,
             onDismiss = { showContents = false }

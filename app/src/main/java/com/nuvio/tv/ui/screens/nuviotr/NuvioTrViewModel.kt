@@ -6,7 +6,12 @@ import android.content.Context
 import com.nuvio.tv.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.nuvio.tv.core.network.NetworkResult
+import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.NuvioTrRepositories
+import com.nuvio.tv.domain.model.CatalogDescriptor
+import com.nuvio.tv.domain.model.TmdbCollectionMediaType
+import com.nuvio.tv.domain.model.TmdbCollectionSource
+import com.nuvio.tv.domain.model.TraktCollectionSource
 import com.nuvio.tv.domain.repository.AddonRepository
 import com.nuvio.tv.domain.repository.NuvioTrRepository
 import com.nuvio.tv.core.plugin.PluginManager
@@ -21,6 +26,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class NuvioTrCollectionContent(
+    val name: String,
+    val type: ContentType,
+    val categories: List<String> = emptyList()
+)
+
 data class NuvioTrUiState(
     val isLoading: Boolean = true,
     val repositories: NuvioTrRepositories = NuvioTrRepositories(),
@@ -33,8 +44,8 @@ data class NuvioTrUiState(
     val installedPluginUrls: Set<String> = emptySet(),
     val pluginProviders: Map<String, List<String>> = emptyMap(),
     val loadingPluginProviders: Set<String> = emptySet(),
-    val catalogContents: Map<String, List<String>> = emptyMap(),
-    val collectionContents: Map<String, List<String>> = emptyMap(),
+    val catalogContents: Map<String, List<CatalogDescriptor>> = emptyMap(),
+    val collectionContents: Map<String, List<NuvioTrCollectionContent>> = emptyMap(),
     val loadingCatalogContents: Set<String> = emptySet(),
     val loadingCollectionContents: Set<String> = emptySet()
 )
@@ -139,9 +150,7 @@ class NuvioTrViewModel @Inject constructor(
         val contents = runCatching {
             when (val result = addonRepository.fetchAddon(baseUrl)) {
                 is NetworkResult.Success -> result.data.catalogs
-                    .map { it.name }
-                    .filter { it.isNotBlank() }
-                    .distinct()
+                    .filter { it.name.isNotBlank() }
                 else -> emptyList()
             }
         }.getOrDefault(emptyList())
@@ -158,8 +167,29 @@ class NuvioTrViewModel @Inject constructor(
         _uiState.update { it.copy(loadingCollectionContents = it.loadingCollectionContents + id) }
         val contents = runCatching {
             collectionsDataStore.importFromJson(api.getCollection(collectionUrl).string())
-                .map { it.title }
-                .filter { it.isNotBlank() }
+                .flatMap { collection ->
+                    collection.folders.flatMap { folder ->
+                        folder.sources.mapNotNull { source ->
+                            when (source) {
+                                is TmdbCollectionSource -> NuvioTrCollectionContent(
+                                    name = source.title,
+                                    type = source.mediaType.toContentType(),
+                                    categories = source.filters.withGenres
+                                        ?.split(',')
+                                        ?.map(String::trim)
+                                        ?.filter(String::isNotBlank)
+                                        .orEmpty()
+                                )
+                                is TraktCollectionSource -> NuvioTrCollectionContent(
+                                    name = source.title,
+                                    type = source.mediaType.toContentType()
+                                )
+                                else -> null
+                            }
+                        }
+                    }
+                }
+                .filter { it.name.isNotBlank() }
                 .distinct()
         }.getOrDefault(emptyList())
         _uiState.update { state ->
@@ -168,6 +198,11 @@ class NuvioTrViewModel @Inject constructor(
                 loadingCollectionContents = state.loadingCollectionContents - id
             )
         }
+    }
+
+    private fun TmdbCollectionMediaType.toContentType(): ContentType = when (this) {
+        TmdbCollectionMediaType.MOVIE -> ContentType.MOVIE
+        TmdbCollectionMediaType.TV -> ContentType.SERIES
     }
 
     fun removePlugin(repoUrl: String) = viewModelScope.launch {
