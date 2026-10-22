@@ -325,9 +325,8 @@ private fun PluginRowWithBadges(
         leadingIcon = Icons.Default.Extension,
         leadingImageUrl = plugin.iconUrl,
         trailingIcon = if (installed) Icons.Default.Delete else Icons.Default.Download,
-        subtitleBadges = origin?.takeUnless(::isCloudstreamOrigin)?.let(::listOf).orEmpty(),
         subtitleSuccessBadges = badges,
-        subtitleErrorBadges = origin?.takeIf(::isCloudstreamOrigin)?.let(::listOf).orEmpty(),
+        subtitleErrorBadges = origin?.let(::listOf).orEmpty(),
         inlineActions = { actionsVisible ->
             LaunchedEffect(actionsVisible) {
                 if (actionsVisible) runCatching { contentsFocusRequester.requestFocus() }
