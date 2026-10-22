@@ -102,16 +102,12 @@ object NuvioExoPlayerPerformanceHelper {
     @Volatile
     var calculatedMemoryUsageMb: Int = 0
 
-    @Volatile
-    var enableHttp2: Boolean = false
-
     /**
      * Updates the performance helper with customized settings from PlayerSettings.
      */
     fun updateSettings(settings: PlayerSettings, context: Context) {
         val customBuffers = settings.bufferEngineEnabled
         val bufferSettings = settings.bufferSettings
-        enableHttp2 = settings.enableHttp2
         
         minBufferMs = if (customBuffers) bufferSettings.minBufferMs else DEFAULT_NUVIO_MIN_BUFFER_MS
         maxBufferMs = if (customBuffers) bufferSettings.maxBufferMs else DEFAULT_NUVIO_MAX_BUFFER_MS
@@ -416,17 +412,12 @@ object NuvioExoPlayerPerformanceHelper {
     // ─── Networking ───────────────────────────────────────────────────────────
 
     /**
-     * Applies HTTP/2 and a connection pool to the given [builder] when
-     * performance mode is enabled. No-op otherwise.
+     * Puts the given [builder] on the shared connection pool. Playback stays on HTTP/1.1: on
+     * HTTP/2 the player made about as much Java garbage as it downloaded, for no speed gain.
      */
-    fun applyNetworkOptimizations(builder: okhttp3.OkHttpClient.Builder): okhttp3.OkHttpClient.Builder {
-        val withPool = builder.connectionPool(sharedConnectionPool)
-        return if (enableHttp2) {
-            withPool.protocols(listOf(okhttp3.Protocol.HTTP_2, okhttp3.Protocol.HTTP_1_1))
-        } else {
-            withPool.protocols(listOf(okhttp3.Protocol.HTTP_1_1))
-        }
-    }
+    fun applyNetworkOptimizations(builder: okhttp3.OkHttpClient.Builder): okhttp3.OkHttpClient.Builder =
+        builder.connectionPool(sharedConnectionPool)
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
 
     // ─── Audio Renderer ───────────────────────────────────────────────────────
 

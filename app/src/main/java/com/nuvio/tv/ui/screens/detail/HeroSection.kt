@@ -71,10 +71,11 @@ import com.nuvio.tv.ui.components.MDBListRatingsRow
 import com.nuvio.tv.ui.components.SynopsisDescription
 import com.nuvio.tv.ui.theme.NuvioTheme
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.Chat
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.painter.Painter
 import coil3.request.ImageRequest
@@ -82,6 +83,7 @@ import coil3.request.crossfade
 import com.nuvio.tv.ui.util.localizedGenreLabel
 import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
 import com.nuvio.tv.ui.util.contentTextDirection
+import com.nuvio.tv.ui.util.rememberRawSvgPainter
 import java.util.Locale
 
 private const val MAX_VISIBLE_HERO_GENRES = 6
@@ -141,14 +143,8 @@ fun HeroContentSection(
         !meta.logo.isNullOrBlank() &&
             !logoLoadFailed &&
             !(isTrailerPlaying && hideLogoDuringTrailer)
-    val libraryAddPainter = rememberRawSvgPainter(
-        context = context,
-        rawRes = com.nuvio.tv.R.raw.library_add_plus
-    )
-    val trailerPainter = rememberRawSvgPainter(
-        context = context,
-        rawRes = com.nuvio.tv.R.raw.trailer_play_button
-    )
+    val libraryAddPainter = rememberRawSvgPainter(rawIconRes = com.nuvio.tv.R.raw.library_add_plus)
+    val trailerPainter = rememberRawSvgPainter(rawIconRes = com.nuvio.tv.R.raw.trailer_play_button)
     val strCreator = stringResource(R.string.hero_creator)
     val strDirector = stringResource(R.string.hero_director)
     val strWriter = stringResource(R.string.hero_writer)
@@ -180,10 +176,18 @@ fun HeroContentSection(
         animationSpec = tween(600),
         label = "logoWidth"
     )
+    // During a trailer the hero fills the screen so the logo sits at the bottom
+    // on screens taller than the hero (lower-density TV boxes).
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val heroHeight by animateDpAsState(
+        targetValue = if (isTrailerPlaying) maxOf(540.dp, screenHeight) else 540.dp,
+        animationSpec = tween(600),
+        label = "heroHeight"
+    )
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(540.dp),
+            .height(heroHeight),
         verticalArrangement = Arrangement.Bottom
     ) {
         Column(
@@ -392,11 +396,7 @@ internal fun PlayButton(
             focusRequester.requestFocusAfterFrames()
         }
     }
-    val context = LocalContext.current
-    val playPainter = rememberRawSvgPainter(
-        context = context,
-        rawRes = com.nuvio.tv.R.raw.ic_player_play
-    )
+    val playPainter = rememberRawSvgPainter(rawIconRes = com.nuvio.tv.R.raw.ic_player_play)
 
     Button(
         enabled = enabled,
@@ -948,22 +948,6 @@ private fun formatRuntime(runtime: String): String? {
     } else {
         "${minutes}m"
     }
-}
-
-@Composable
-private fun rememberRawSvgPainter(
-    context: android.content.Context,
-    @androidx.annotation.RawRes rawRes: Int
-): Painter {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val sizePx = with(density) { NuvioTheme.spacing.xl.roundToPx() }
-    val model = remember(rawRes, context, sizePx) {
-        ImageRequest.Builder(context)
-            .data(rawRes)
-            .size(sizePx)
-            .build()
-    }
-    return coil3.compose.rememberAsyncImagePainter(model = model)
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)

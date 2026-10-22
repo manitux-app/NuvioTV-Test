@@ -857,7 +857,7 @@ class PlayerSettingsDataStore @Inject constructor(
                 rememberPlaybackSpeedAcrossVideos = prefs[rememberPlaybackSpeedAcrossVideosKey] ?: false,
                 globalPlaybackSpeed = (prefs[globalPlaybackSpeedKey] ?: 1f)
                     .takeIf { it.isFinite() && it > 0f } ?: 1f,
-                useLibass = prefs[useLibassKey] ?: false,
+                useLibass = prefs[useLibassKey] ?: true,
                 libassRenderType = prefs[libassRenderTypeKey]?.let {
                     try { LibassRenderType.valueOf(it) } catch (e: Exception) { LibassRenderType.OVERLAY_OPEN_GL }
                 } ?: LibassRenderType.OVERLAY_OPEN_GL,

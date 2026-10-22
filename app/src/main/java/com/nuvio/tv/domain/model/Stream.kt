@@ -3,6 +3,8 @@ package com.nuvio.tv.domain.model
 import androidx.compose.runtime.Immutable
 import com.nuvio.tv.core.debrid.DebridProviders
 import com.nuvio.tv.data.mediaserver.ServerPlaybackTarget
+import kotlin.math.roundToInt
+import kotlinx.serialization.Serializable
 
 /**
  * Represents a stream source from a Stremio addon
@@ -27,7 +29,8 @@ data class Stream(
     val debridCacheStatus: StreamDebridCacheStatus? = null,
     val badges: List<StreamBadge> = emptyList(),
     val subtitles: List<Subtitle> = emptyList(),
-    val serverTarget: ServerPlaybackTarget? = null
+    val serverTarget: ServerPlaybackTarget? = null,
+    val pluginSourceName: String? = null
 ) {
     /**
      * Returns the primary stream source URL

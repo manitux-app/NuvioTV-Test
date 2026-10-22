@@ -152,6 +152,38 @@ class StreamRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun getCachedStreamsFromAllAddons(
+        type: String,
+        videoId: String,
+        season: Int?,
+        episode: Int?
+    ): List<AddonStreams>? {
+        val sourceConfiguration = captureSourceConfiguration(
+            selectedPluginScraperId = null,
+            selectedPluginRepositoryId = null,
+            restrictAddonSources = false
+        )
+        val requestKey = StreamSearchRequestKey(
+            profileId = sourceConfiguration.profileId,
+            type = type.lowercase(),
+            videoId = videoId,
+            season = season,
+            episode = episode,
+            sourceConfiguration = buildSourceConfigurationKey(
+                addons = sourceConfiguration.addons,
+                pluginsEnabled = sourceConfiguration.pluginsEnabled,
+                enabledScrapers = sourceConfiguration.enabledScrapers,
+                groupPluginsByRepository = sourceConfiguration.groupPluginsByRepository,
+                pluginRepositories = sourceConfiguration.pluginRepositories,
+                debridPresentationConfiguration = sourceConfiguration.debridSettings
+                    .withoutRawCredentials()
+                    .toString(),
+                serverRevision = serverStreams.revision
+            )
+        )
+        return streamSearchSessions.peek(requestKey)
+    }
+
     private suspend fun captureSourceConfiguration(
         selectedPluginScraperId: String?,
         selectedPluginRepositoryId: String?,
@@ -608,15 +640,19 @@ class StreamRepositoryImpl @Inject constructor(
             title = displayTitle,
             url = url,
             addonName = addonName,
+            pluginSourceName = scraper.name,
             addonLogo = null,
             description = buildDescription(this),
-            behaviorHints = headers?.let { headers ->
+            behaviorHints = if (headers != null || audioDelayMs != null) {
                 StreamBehaviorHints(
                     notWebReady = null,
                     bingeGroup = null,
                     countryWhitelist = null,
-                    proxyHeaders = ProxyHeaders(request = headers, response = null)
+                    proxyHeaders = headers?.let { ProxyHeaders(request = it, response = null) },
+                    audioDelayMs = audioDelayMs
                 )
+            } else {
+                null
             },
             infoHash = infoHash,
             fileIdx = null,
