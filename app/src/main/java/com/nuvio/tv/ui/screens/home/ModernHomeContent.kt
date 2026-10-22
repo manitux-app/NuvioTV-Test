@@ -697,10 +697,14 @@ fun ModernHomeContent(
                     
                     val enrichedItem = activeItemId?.let { enrichedPreviews[it] }
                     val enrichedHero = if (enrichedItem != null) {
+                        val pluginDescription = activeCarouselItem?.metaPreview
+                            ?.takeIf { it.pluginContentRef != null }
+                            ?.description
+                            ?.takeIf { it.isNotBlank() }
                         HeroPreview(
                             title = enrichedItem.name,
                             logo = enrichedItem.logo,
-                            description = enrichedItem.description,
+                            description = pluginDescription ?: enrichedItem.description,
                             contentTypeText = activeCarouselItem?.heroPreview?.contentTypeText,
                             isSeries = isSeriesType(enrichedItem.apiType),
                             yearText = extractYearText(enrichedItem.type, enrichedItem.releaseInfo, enrichedItem.released)

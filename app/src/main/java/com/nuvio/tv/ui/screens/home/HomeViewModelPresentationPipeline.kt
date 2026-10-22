@@ -915,7 +915,10 @@ private fun HomeViewModel.updateCatalogItemWithTmdb(itemId: String, enrichment: 
         if (currentTmdbSettings.useBasicInfo) {
             merged = merged.copy(
                 name = if (isModernLayout) enrichment.localizedTitle ?: merged.name else merged.name,
-                description = enrichment.description ?: merged.description,
+                description = merged.description
+                    ?.takeIf { merged.pluginContentRef != null && it.isNotBlank() }
+                    ?: enrichment.description
+                    ?: merged.description,
                 genres = if (enrichment.genres.isNotEmpty()) enrichment.genres else merged.genres
             )
         }
@@ -1027,7 +1030,10 @@ private fun HomeViewModel.updateCatalogItemWithMeta(itemId: String, meta: Meta) 
     fun mergeItem(currentItem: MetaPreview): MetaPreview = currentItem.copy(
         background = meta.backdropUrl ?: currentItem.backdropUrl,
         logo = meta.logo ?: currentItem.logo,
-        description = meta.description ?: currentItem.description,
+        description = currentItem.description
+            ?.takeIf { currentItem.pluginContentRef != null && it.isNotBlank() }
+            ?: meta.description
+            ?: currentItem.description,
         imdbRating = meta.imdbRating ?: currentItem.imdbRating,
         genres = if (meta.genres.isNotEmpty()) meta.genres else currentItem.genres,
         runtime = meta.runtime ?: currentItem.runtime,
@@ -1170,7 +1176,10 @@ internal suspend fun HomeViewModel.enrichHeroItemsPipeline(
                         if (settings.useBasicInfo) {
                             enriched = enriched.copy(
                                 name = enrichment.localizedTitle ?: enriched.name,
-                                description = enrichment.description ?: enriched.description,
+                                description = enriched.description
+                                    ?.takeIf { enriched.pluginContentRef != null && it.isNotBlank() }
+                                    ?: enrichment.description
+                                    ?: enriched.description,
                                 genres = if (enrichment.genres.isNotEmpty()) enrichment.genres else enriched.genres,
                                 imdbRating = enriched.imdbRating
                             )

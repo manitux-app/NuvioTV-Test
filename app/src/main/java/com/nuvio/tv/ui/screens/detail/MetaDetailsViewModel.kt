@@ -1070,8 +1070,13 @@ class MetaDetailsViewModel @Inject constructor(
     }
 
     private suspend fun applyMetaWithEnrichment(meta: Meta) {
-        if (!isServerItem) loadMoreLikeThisAsync(meta)
-        val enriched = if (isServerItem) meta else enrichMeta(meta)
+        val metaWithPluginDescription = pluginCatalogItem?.description
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { description -> meta.copy(description = description) }
+            ?: meta
+        if (!isServerItem) loadMoreLikeThisAsync(metaWithPluginDescription)
+        val enriched = if (isServerItem) metaWithPluginDescription else enrichMeta(metaWithPluginDescription)
 
         syncEffectiveContentId(enriched)
         val cachedNextToWatch = metaDetailsSessionState.getNextToWatch(
@@ -1723,7 +1728,7 @@ class MetaDetailsViewModel @Inject constructor(
         if (enrichment != null && settings.useBasicInfo) {
             updated = updated.copy(
                 name = enrichment.localizedTitle ?: updated.name,
-                description = enrichment.description ?: updated.description
+                description = updated.description?.takeIf { it.isNotBlank() } ?: enrichment.description
             )
             if (enrichment.genres.isNotEmpty()) {
                 updated = updated.copy(genres = enrichment.genres)
