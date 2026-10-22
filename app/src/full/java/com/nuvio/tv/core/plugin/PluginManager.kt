@@ -516,6 +516,7 @@ class PluginManager @Inject constructor(
             id = UUID.randomUUID().toString(),
             name = manifest.name,
             url = canonicalManifestUrl,
+            description = manifest.description,
             enabled = true,
             lastUpdated = System.currentTimeMillis(),
             scraperCount = manifest.scrapers.size,
@@ -687,6 +688,7 @@ class PluginManager @Inject constructor(
             // Update repository
             val updatedRepo = repo.copy(
                 name = manifest.name,
+                description = manifest.description,
                 lastUpdated = System.currentTimeMillis(),
                 scraperCount = manifest.scrapers.size
             )
@@ -712,6 +714,7 @@ class PluginManager @Inject constructor(
 
         val updatedRepo = repo.copy(
             name = parseResult.name,
+            description = parseResult.description,
             lastUpdated = System.currentTimeMillis(),
             scraperCount = parseResult.plugins.size
         )
