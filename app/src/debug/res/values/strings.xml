@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Nuvio Debug</string>
+    <string name="launcher_app_name" translatable="false">NuvioTest</string>
 </resources>

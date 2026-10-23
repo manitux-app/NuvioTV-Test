@@ -110,7 +110,7 @@ android {
 
     defaultConfig {
         // Keep fork releases installable beside the upstream Nuvio application.
-        applicationId = "com.manitux.nuviotv"
+        applicationId = "com.manitux.nuviotr"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 24
         targetSdk = 36
